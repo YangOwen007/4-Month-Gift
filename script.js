@@ -294,6 +294,32 @@ function trimSprite(image, threshold = 32) {
       maxY = Math.max(maxY, y);
     }
 
+    // A second pass strips the bright fringe pixels that were left on some props.
+    for (let y = 1; y < canvas.height - 1; y += 1) {
+      for (let x = 1; x < canvas.width - 1; x += 1) {
+        const pixelIndex = (y * canvas.width + x) * 4;
+        if (pixels[pixelIndex + 3] === 0) {
+          continue;
+        }
+
+        const brightness = pixels[pixelIndex] + pixels[pixelIndex + 1] + pixels[pixelIndex + 2];
+        if (brightness < 690) {
+          continue;
+        }
+
+        const neighbors = [
+          ((y - 1) * canvas.width + x) * 4,
+          ((y + 1) * canvas.width + x) * 4,
+          (y * canvas.width + (x - 1)) * 4,
+          (y * canvas.width + (x + 1)) * 4
+        ];
+
+        if (neighbors.some((neighborIndex) => pixels[neighborIndex + 3] === 0)) {
+          pixels[pixelIndex + 3] = 0;
+        }
+      }
+    }
+
     context.putImageData(imageData, 0, 0);
 
     if (maxX < minX || maxY < minY) {
@@ -317,50 +343,18 @@ function trimSprite(image, threshold = 32) {
   }
 }
 
-function recolorFireworkFrame(image) {
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-
-    if (!context) {
-      return image;
-    }
-
-    context.drawImage(image, 0, 0);
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-
-    // The source strip is green-on-black, so we remap it into warm celebration colors.
-    for (let index = 0; index < pixels.length; index += 4) {
-      const red = pixels[index];
-      const green = pixels[index + 1];
-      const blue = pixels[index + 2];
-
-      if (red < 20 && green < 20 && blue < 20) {
-        pixels[index + 3] = 0;
-        continue;
-      }
-
-      if (green > red + 20 && green > blue + 20) {
-        const brightness = Math.max(red, green, blue);
-        pixels[index] = Math.min(255, brightness + 70);
-        pixels[index + 1] = Math.min(255, brightness + 25);
-        pixels[index + 2] = Math.min(255, 180 + Math.floor(brightness * 0.18));
-      }
-    }
-
-    context.putImageData(imageData, 0, 0);
-    return canvas;
-  } catch (error) {
-    console.warn("Firework recolor failed, using original frame instead.", error);
-    return image;
-  }
+function createTileCanvas(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = GAME_CONFIG.tileSize;
+  canvas.height = GAME_CONFIG.tileSize;
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize);
+  return canvas;
 }
 
 async function loadAssets() {
-  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, oceanImage, sparkleFrames, fireworkFrames] = await Promise.all([
+  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, oceanImage, sparkleFrames] = await Promise.all([
     loadImage(GAME_CONFIG.assets.grass),
     loadImage(GAME_CONFIG.assets.stone),
     loadImage(GAME_CONFIG.assets.cliff),
@@ -369,21 +363,19 @@ async function loadAssets() {
     loadImage(GAME_CONFIG.assets.rock),
     loadImage(GAME_CONFIG.assets.bench),
     loadImage(GAME_CONFIG.assets.ocean),
-    Promise.all(GAME_CONFIG.assets.sparkles.map((src) => loadImage(src))),
-    Promise.all(GAME_CONFIG.assets.fireworks.map((src) => loadImage(src)))
+    Promise.all(GAME_CONFIG.assets.sparkles.map((src) => loadImage(src)))
   ]);
 
   return {
-    grass: grassImage,
-    stone: stoneImage,
-    cliff: cliffImage,
+    grass: createTileCanvas(grassImage),
+    stone: createTileCanvas(stoneImage),
+    cliff: createTileCanvas(cliffImage),
     tree: trimSprite(treeImage, 96),
     bush: trimSprite(bushImage, 96),
     rock: trimSprite(rockImage, 96),
     bench: trimSprite(benchImage, 96),
     ocean: oceanImage,
-    sparkleFrames,
-    fireworkFrames: fireworkFrames.map((frame) => recolorFireworkFrame(frame))
+    sparkleFrames
   };
 }
 
@@ -444,21 +436,7 @@ function drawPixelLine(context, x, y, width, height, color) {
 }
 
 function drawTextureTile(image, screenX, screenY, tileX, tileY) {
-  const textureWidth = Math.max(1, image.width - GAME_CONFIG.tileSize);
-  const textureHeight = Math.max(1, image.height - GAME_CONFIG.tileSize);
-  const sourceX = Math.abs((tileX * 37) % textureWidth);
-  const sourceY = Math.abs((tileY * 29) % textureHeight);
-  gameContext.drawImage(
-    image,
-    sourceX,
-    sourceY,
-    GAME_CONFIG.tileSize,
-    GAME_CONFIG.tileSize,
-    screenX,
-    screenY,
-    GAME_CONFIG.tileSize,
-    GAME_CONFIG.tileSize
-  );
+  gameContext.drawImage(image, screenX, screenY);
 }
 
 function drawGrassTile(screenX, screenY, tileX, tileY) {
@@ -510,7 +488,11 @@ function drawOverlookTile(screenX, screenY, tileX, tileY) {
 }
 
 function drawBench(screenX, screenY) {
-  gameContext.drawImage(state.assets.bench, screenX + 8, screenY + 12, 32, 20);
+  gameContext.save();
+  gameContext.translate(screenX + 24, screenY + 25);
+  gameContext.rotate(Math.PI / 2);
+  gameContext.drawImage(state.assets.bench, -14, -18, 28, 36);
+  gameContext.restore();
 }
 
 function shouldShowOceanBackdrop() {
@@ -576,9 +558,9 @@ function drawPlayer() {
 
 function drawStopSparkle(stop, cameraX, cameraY) {
   const frame = state.assets.sparkleFrames[state.sparkleFrame % state.assets.sparkleFrames.length];
-  const x = stop.x * GAME_CONFIG.tileSize + cameraX + 9;
-  const y = stop.y * GAME_CONFIG.tileSize + cameraY - 2;
-  gameContext.drawImage(frame, x, y, 30, 30);
+  const x = stop.x * GAME_CONFIG.tileSize + cameraX - 6;
+  const y = stop.y * GAME_CONFIG.tileSize + cameraY - 12;
+  gameContext.drawImage(frame, x, y, 60, 60);
 }
 
 function drawMemoryMarker(stop, cameraX, cameraY) {
@@ -595,12 +577,22 @@ function drawMemoryMarker(stop, cameraX, cameraY) {
 }
 
 function drawGate(tileX, tileY, cameraX, cameraY) {
-  const x = tileX * GAME_CONFIG.tileSize + cameraX + 10;
-  const y = tileY * GAME_CONFIG.tileSize + cameraY + 8;
-  drawPixelRect(gameContext, x + 10, y, 8, 32, "#e2c05a");
-  drawPixelRect(gameContext, x, y + 10, 28, 8, "#f2da7f");
-  drawPixelRect(gameContext, x + 8, y + 8, 12, 12, "#fff0a8");
-  drawPixelRect(gameContext, x + 12, y - 4, 4, 40, "#d79a2e");
+  const neighbors = getPathNeighbors(tileX, tileY);
+  const isVerticalPath = (neighbors.up || neighbors.down) && !neighbors.left && !neighbors.right;
+  const x = tileX * GAME_CONFIG.tileSize + cameraX;
+  const y = tileY * GAME_CONFIG.tileSize + cameraY;
+
+  if (isVerticalPath) {
+    drawPixelRect(gameContext, x + 18, y + 5, 12, 38, "#d79a2e");
+    drawPixelRect(gameContext, x + 14, y + 12, 20, 14, "#f6df86");
+    drawPixelRect(gameContext, x + 10, y + 18, 28, 6, "#e2c05a");
+    drawPixelRect(gameContext, x + 20, y + 8, 8, 32, "#fff0a8");
+  } else {
+    drawPixelRect(gameContext, x + 5, y + 18, 38, 12, "#d79a2e");
+    drawPixelRect(gameContext, x + 12, y + 14, 14, 20, "#f6df86");
+    drawPixelRect(gameContext, x + 18, y + 10, 6, 28, "#e2c05a");
+    drawPixelRect(gameContext, x + 8, y + 20, 32, 8, "#fff0a8");
+  }
 }
 
 function drawTile(tileX, tileY, cameraX, cameraY) {
@@ -716,30 +708,66 @@ function renderGame(timestamp = 0) {
 }
 
 function launchBurst() {
-  const shapes = [0, 1, 2, 3, 4, 5, 6];
+  const shapes = ["ring", "heart", "star"];
+  const palettes = [
+    ["#ffeaa0", "#ffca5f", "#ff7b89"],
+    ["#fff3bf", "#ffd166", "#ff8ab4"],
+    ["#f8f4ff", "#9ed8ff", "#ff9dd7"]
+  ];
   state.fireworks.push({
-    x: Math.round(Math.random() * 250 + 90),
-    y: Math.round(Math.random() * 90 + 34),
-    frame: 0,
-    frameTime: 0,
-    shapeOffset: shapes[Math.floor(Math.random() * shapes.length)]
+    x: Math.round(Math.random() * 180 + 150),
+    y: Math.round(Math.random() * 70 + 45),
+    age: 0,
+    duration: 1200,
+    shape: shapes[Math.floor(Math.random() * shapes.length)],
+    palette: palettes[Math.floor(Math.random() * palettes.length)]
   });
+}
+
+function drawFireworkParticle(x, y, color) {
+  drawPixelRect(fireworksContext, x - 2, y - 2, 4, 4, color);
+}
+
+function drawBurstShape(burst, progress) {
+  const radius = 10 + progress * 34;
+  const [core, mid, outer] = burst.palette;
+  const count = burst.shape === "heart" ? 22 : burst.shape === "star" ? 18 : 20;
+
+  for (let index = 0; index < count; index += 1) {
+    const angle = (Math.PI * 2 * index) / count;
+    let x;
+    let y;
+
+    if (burst.shape === "heart") {
+      const heartX = 16 * Math.pow(Math.sin(angle), 3);
+      const heartY = -(13 * Math.cos(angle) - 5 * Math.cos(2 * angle) - 2 * Math.cos(3 * angle) - Math.cos(4 * angle));
+      x = burst.x + heartX * (0.85 + progress * 0.9);
+      y = burst.y + heartY * (0.85 + progress * 0.9);
+    } else if (burst.shape === "star") {
+      const spoke = index % 2 === 0 ? radius : radius * 0.45;
+      x = burst.x + Math.cos(angle) * spoke;
+      y = burst.y + Math.sin(angle) * spoke;
+    } else {
+      x = burst.x + Math.cos(angle) * radius;
+      y = burst.y + Math.sin(angle) * radius;
+    }
+
+    const color = progress < 0.35 ? core : progress < 0.7 ? mid : outer;
+    drawFireworkParticle(Math.round(x), Math.round(y), color);
+  }
+
+  drawPixelRect(fireworksContext, burst.x - 3, burst.y - 3, 6, 6, "#fffef5");
 }
 
 function drawFireworks(delta) {
   fireworksContext.clearRect(0, 0, VIEWPORT_PIXELS, VIEWPORT_PIXELS);
   fireworksContext.imageSmoothingEnabled = false;
 
-  state.fireworks = state.fireworks.filter((burst) => burst.frame < state.assets.fireworkFrames.length);
+  state.fireworks = state.fireworks.filter((burst) => burst.age < burst.duration);
 
   for (const burst of state.fireworks) {
-    const sourceFrame = state.assets.fireworkFrames[(burst.frame + burst.shapeOffset) % state.assets.fireworkFrames.length];
-    fireworksContext.drawImage(sourceFrame, burst.x - sourceFrame.width / 2, burst.y - sourceFrame.height / 2);
-    burst.frameTime += delta;
-    while (burst.frameTime >= 128) {
-      burst.frame += 1;
-      burst.frameTime -= 128;
-    }
+    burst.age += delta;
+    drawBurstShape(burst, Math.min(1, burst.age / burst.duration));
   }
 }
 

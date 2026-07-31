@@ -61,45 +61,30 @@ const GAME_CONFIG = {
 };
 
 // Terrain legend:
-// g grass, o ocean void, c cliff top, v cliff wall, a overlook platform.
-const RAW_TERRAIN_ROWS = [
-  "oooooooooooooooooooooooooo",
-  "oooooooooooooooooooooooooo",
-  "oooooooooccccccccooooooooo",
-  "oooooooaccccccccccaooooooo",
-  "ooooooaaccccccccccaaoooooo",
-  "gggggggaccccccccccaggggggg",
-  "gggggggggccccccccggggggggg",
-  "ggggggggggggccgggggggggggg",
-  "gggggggggggggpgpgggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "ggggggggppppppppgggggggggg",
-  "ggggggggpggggggppggggggggg",
-  "ggggggggpgggggggpggggggggg",
-  "ggggggggpgggggggpggggggggg",
-  "ggggggggpppppppppggggggggg",
-  "ggggggggggggggggpggggggggg",
-  "ggggggggggggggggpggggggggg",
-  "ggggggggggggggggpggggggggg",
-  "gggggggggggggggpppgggggggg",
-  "gggggggggggggggpgggggggggg",
-  "gggggggggggggggpgggggggggg",
-  "gggggggggggggggpgggggggggg",
-  "gggggggggggggggpgggggggggg",
-  "gggggggggggggggpgggggggggg",
-  "gggggggggggggggpgggggggggg",
-  "gggggggggggggppppggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "gggggggggggggpgggggggggggg",
-  "gggggggggggggagggggggggggg",
-  "gggggggggggggagggggggggggg",
-  "gggggggggggggagggggggggggg",
-  "vvvvvvvvvvvvvvvvvvvvvvvvvv"
-];
+// g grass, o ocean void, c cliff top, a overlook platform.
+const RAW_TERRAIN_ROWS = Array.from({ length: GAME_CONFIG.mapHeight }, (_, y) => {
+  if (y <= 1) {
+    return "oooooooooooooooooooooooooo";
+  }
+
+  if (y === 2) {
+    return "oooooooooooaaaoooooooooooo";
+  }
+
+  if (y === 3) {
+    return "ooooooooooaccccaoooooooooo";
+  }
+
+  if (y === 4) {
+    return "ggggggggggacccaggggggggggg";
+  }
+
+  if (y === 5) {
+    return "gggggggggggacagggggggggggg";
+  }
+
+  return "gggggggggggggggggggggggggg";
+});
 
 // Tree placement stays dense around the path but avoids blocking key read lines.
 const TREE_POSITIONS = [
@@ -268,51 +253,108 @@ function loadImage(src) {
 }
 
 function trimSprite(image, threshold = 32) {
-  const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.drawImage(image, 0, 0);
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const pixels = imageData.data;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
 
-  let minX = canvas.width;
-  let minY = canvas.height;
-  let maxX = -1;
-  let maxY = -1;
-
-  // Sprite art from the generated sheet sits on white, so we cut that cleanly here.
-  for (let index = 0; index < pixels.length; index += 4) {
-    const red = pixels[index];
-    const green = pixels[index + 1];
-    const blue = pixels[index + 2];
-    const distance = Math.abs(255 - red) + Math.abs(255 - green) + Math.abs(255 - blue);
-    if (distance <= threshold) {
-      pixels[index + 3] = 0;
-      continue;
+    if (!context) {
+      return image;
     }
 
-    const pixelIndex = index / 4;
-    const x = pixelIndex % canvas.width;
-    const y = Math.floor(pixelIndex / canvas.width);
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
+    context.drawImage(image, 0, 0);
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+
+    let minX = canvas.width;
+    let minY = canvas.height;
+    let maxX = -1;
+    let maxY = -1;
+
+    // Sprite art from the generated sheet sits on white, so we cut that cleanly here.
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+      const distance = Math.abs(255 - red) + Math.abs(255 - green) + Math.abs(255 - blue);
+      if (distance <= threshold) {
+        pixels[index + 3] = 0;
+        continue;
+      }
+
+      const pixelIndex = index / 4;
+      const x = pixelIndex % canvas.width;
+      const y = Math.floor(pixelIndex / canvas.width);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+
+    context.putImageData(imageData, 0, 0);
+
+    if (maxX < minX || maxY < minY) {
+      return canvas;
+    }
+
+    const trimmed = document.createElement("canvas");
+    trimmed.width = maxX - minX + 1;
+    trimmed.height = maxY - minY + 1;
+    const trimmedContext = trimmed.getContext("2d");
+
+    if (!trimmedContext) {
+      return canvas;
+    }
+
+    trimmedContext.drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+    return trimmed;
+  } catch (error) {
+    console.warn("Sprite trim failed, using original image instead.", error);
+    return image;
   }
+}
 
-  context.putImageData(imageData, 0, 0);
+function recolorFireworkFrame(image) {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
 
-  if (maxX < minX || maxY < minY) {
+    if (!context) {
+      return image;
+    }
+
+    context.drawImage(image, 0, 0);
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+
+    // The source strip is green-on-black, so we remap it into warm celebration colors.
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+
+      if (red < 20 && green < 20 && blue < 20) {
+        pixels[index + 3] = 0;
+        continue;
+      }
+
+      if (green > red + 20 && green > blue + 20) {
+        const brightness = Math.max(red, green, blue);
+        pixels[index] = Math.min(255, brightness + 70);
+        pixels[index + 1] = Math.min(255, brightness + 25);
+        pixels[index + 2] = Math.min(255, 180 + Math.floor(brightness * 0.18));
+      }
+    }
+
+    context.putImageData(imageData, 0, 0);
     return canvas;
+  } catch (error) {
+    console.warn("Firework recolor failed, using original frame instead.", error);
+    return image;
   }
-
-  const trimmed = document.createElement("canvas");
-  trimmed.width = maxX - minX + 1;
-  trimmed.height = maxY - minY + 1;
-  const trimmedContext = trimmed.getContext("2d");
-  trimmedContext.drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
-  return trimmed;
 }
 
 async function loadAssets() {
@@ -339,7 +381,7 @@ async function loadAssets() {
     bench: trimSprite(benchImage, 96),
     ocean: oceanImage,
     sparkleFrames,
-    fireworkFrames
+    fireworkFrames: fireworkFrames.map((frame) => recolorFireworkFrame(frame))
   };
 }
 

@@ -34,16 +34,16 @@ const GAME_CONFIG = {
       image: "",
       x: 9,
       y: 13,
-      gate: { x: 10, y: 13 }
+      gate: { x: 9, y: 12 }
     },
     {
       id: "fourth-stop",
       title: "Almost At The View",
       note: "You can use this memory to build anticipation for the ending and hint that the ocean overlook is almost there.",
       image: "",
-      x: 15,
+      x: 9,
       y: 8,
-      gate: { x: 14, y: 8 }
+      gate: { x: 10, y: 8 }
     }
   ],
   assets: {
@@ -68,19 +68,23 @@ const RAW_TERRAIN_ROWS = Array.from({ length: GAME_CONFIG.mapHeight }, (_, y) =>
   }
 
   if (y === 2) {
-    return "oooooooooooaaaoooooooooooo";
+    return "oooooooooocccccccooooooooo";
   }
 
   if (y === 3) {
-    return "ooooooooooaccccaoooooooooo";
+    return "ooooooooccccccccccoooooooo";
   }
 
   if (y === 4) {
-    return "ggggggggggacccaggggggggggg";
+    return "ggggggggacccccccccaggggggg";
   }
 
   if (y === 5) {
-    return "gggggggggggacagggggggggggg";
+    return "gggggggggacccccccagggggggg";
+  }
+
+  if (y === 6) {
+    return "ggggggggggaccccagggggggggg";
   }
 
   return "gggggggggggggggggggggggggg";
@@ -111,12 +115,10 @@ const PATH_SEGMENTS = [
   [{ x: 13, y: 31 }, { x: 13, y: 27 }],
   [{ x: 13, y: 27 }, { x: 17, y: 27 }],
   [{ x: 17, y: 27 }, { x: 17, y: 20 }],
-  [{ x: 17, y: 20 }, { x: 13, y: 20 }],
-  [{ x: 13, y: 20 }, { x: 13, y: 13 }],
-  [{ x: 13, y: 13 }, { x: 9, y: 13 }],
-  [{ x: 9, y: 13 }, { x: 15, y: 13 }],
-  [{ x: 15, y: 13 }, { x: 15, y: 8 }],
-  [{ x: 15, y: 8 }, { x: 13, y: 8 }],
+  [{ x: 17, y: 20 }, { x: 9, y: 20 }],
+  [{ x: 9, y: 20 }, { x: 9, y: 13 }],
+  [{ x: 9, y: 13 }, { x: 9, y: 8 }],
+  [{ x: 9, y: 8 }, { x: 13, y: 8 }],
   [{ x: 13, y: 8 }, { x: 13, y: 4 }]
 ];
 
@@ -508,7 +510,11 @@ function drawOverlookTile(screenX, screenY, tileX, tileY) {
 }
 
 function drawBench(screenX, screenY) {
-  gameContext.drawImage(state.assets.bench, screenX + 8, screenY + 22, 32, 20);
+  gameContext.drawImage(state.assets.bench, screenX + 8, screenY + 12, 32, 20);
+}
+
+function shouldShowOceanBackdrop() {
+  return state.player.y <= 9 || state.endingCutscene.active;
 }
 
 function drawOceanBackdrop() {
@@ -677,7 +683,11 @@ function renderGame(timestamp = 0) {
   const camera = getCameraOrigin();
   gameContext.clearRect(0, 0, VIEWPORT_PIXELS, VIEWPORT_PIXELS);
   gameContext.imageSmoothingEnabled = false;
-  drawOceanBackdrop();
+  if (shouldShowOceanBackdrop()) {
+    drawOceanBackdrop();
+  } else {
+    drawPixelRect(gameContext, 0, 0, VIEWPORT_PIXELS, VIEWPORT_PIXELS, "#87cb4f");
+  }
 
   // Base terrain is drawn first, then larger props so layering stays clean.
   for (let y = 0; y < GAME_CONFIG.mapHeight; y += 1) {

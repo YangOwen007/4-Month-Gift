@@ -49,6 +49,10 @@ const GAME_CONFIG = {
   assets: {
     tree: "assets/tree-clean.png",
     bush: "assets/bush-clean.png",
+    grassTuft: "assets/decor/grass-tuft.png",
+    rocks: ["assets/decor/rock-0.png", "assets/decor/rock-1.png", "assets/decor/rock-2.png"],
+    shrubs: ["assets/decor/shrub-0.png", "assets/decor/shrub-1.png", "assets/decor/shrub-2.png"],
+    flowers: ["assets/decor/flower-0.png", "assets/decor/flower-1.png", "assets/decor/flower-2.png"],
     ocean: "assets/ocean-night.png",
     sparkles: Array.from({ length: 12 }, (_, index) => `assets/sparkles/sparkle-${index}.png`),
     fireworks: Array.from({ length: 7 }, (_, index) => `assets/fireworks/firework-${index}.png`)
@@ -118,6 +122,16 @@ const FLOWER_POSITIONS = [
   { x: 10, y: 10 }, { x: 15, y: 10 }, { x: 8, y: 7 }, { x: 18, y: 7 }
 ];
 
+const ROCK_POSITIONS = [
+  { x: 10, y: 24 }, { x: 19, y: 24 }, { x: 8, y: 19 },
+  { x: 18, y: 20 }, { x: 10, y: 6 }, { x: 16, y: 6 }
+];
+
+const SHRUB_POSITIONS = [
+  { x: 6, y: 29 }, { x: 20, y: 29 }, { x: 4, y: 22 }, { x: 22, y: 22 },
+  { x: 5, y: 12 }, { x: 21, y: 12 }, { x: 9, y: 9 }, { x: 17, y: 9 }
+];
+
 const PATH_SEGMENTS = [
   [{ x: 13, y: 31 }, { x: 13, y: 27 }],
   [{ x: 13, y: 27 }, { x: 17, y: 27 }],
@@ -165,6 +179,7 @@ const state = {
   sparkleTime: 0,
   fireworks: [],
   fireworkTimer: null,
+  fireworkLastTimestamp: 0,
   animationFrame: null,
   lastTimestamp: 0,
   assets: null,
@@ -213,6 +228,8 @@ const stopByPosition = new Map(GAME_CONFIG.stops.map((stop) => [positionKey(stop
 const treeSet = new Set(TREE_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const bushSet = new Set(BUSH_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const flowerSet = new Set(FLOWER_POSITIONS.map((item) => positionKey(item.x, item.y)));
+const rockSet = new Set(ROCK_POSITIONS.map((item) => positionKey(item.x, item.y)));
+const shrubSet = new Set(SHRUB_POSITIONS.map((item) => positionKey(item.x, item.y)));
 
 function getTerrainType(x, y) {
   if (PATH_TILES.has(positionKey(x, y))) {
@@ -263,9 +280,13 @@ function loadImage(src) {
 }
 
 async function loadAssets() {
-  const [treeImage, bushImage, oceanImage, sparkleFrames, fireworkFrames] = await Promise.all([
+  const [treeImage, bushImage, grassTuftImage, rockImages, shrubImages, flowerImages, oceanImage, sparkleFrames, fireworkFrames] = await Promise.all([
     loadImage(GAME_CONFIG.assets.tree),
     loadImage(GAME_CONFIG.assets.bush),
+    loadImage(GAME_CONFIG.assets.grassTuft),
+    Promise.all(GAME_CONFIG.assets.rocks.map((src) => loadImage(src))),
+    Promise.all(GAME_CONFIG.assets.shrubs.map((src) => loadImage(src))),
+    Promise.all(GAME_CONFIG.assets.flowers.map((src) => loadImage(src))),
     loadImage(GAME_CONFIG.assets.ocean),
     Promise.all(GAME_CONFIG.assets.sparkles.map((src) => loadImage(src))),
     Promise.all(GAME_CONFIG.assets.fireworks.map((src) => loadImage(src)))
@@ -274,6 +295,10 @@ async function loadAssets() {
   return {
     tree: treeImage,
     bush: bushImage,
+    grassTuft: grassTuftImage,
+    rocks: rockImages,
+    shrubs: shrubImages,
+    flowers: flowerImages,
     ocean: oceanImage,
     sparkleFrames,
     fireworkFrames
@@ -336,99 +361,106 @@ function drawPixelLine(context, x, y, width, height, color) {
   drawPixelRect(context, x, y, width, height, color);
 }
 
-function drawGrassTile(screenX, screenY) {
-  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#7fc64c");
-  drawPixelRect(gameContext, screenX, screenY + 24, 48, 24, "#71b63f");
-  drawPixelRect(gameContext, screenX + 3, screenY + 6, 8, 8, "#93dc5a");
-  drawPixelRect(gameContext, screenX + 13, screenY + 4, 5, 10, "#87d14f");
-  drawPixelRect(gameContext, screenX + 22, screenY + 10, 8, 7, "#9ce064");
-  drawPixelRect(gameContext, screenX + 34, screenY + 6, 6, 9, "#88ce51");
-  drawPixelRect(gameContext, screenX + 39, screenY + 17, 5, 11, "#609f36");
-  drawPixelRect(gameContext, screenX + 6, screenY + 28, 8, 14, "#5c9d33");
-  drawPixelRect(gameContext, screenX + 19, screenY + 24, 6, 15, "#68ab38");
-  drawPixelRect(gameContext, screenX + 28, screenY + 31, 7, 12, "#4d8e29");
-  drawPixelRect(gameContext, screenX + 39, screenY + 30, 5, 10, "#5f9b35");
-  drawPixelLine(gameContext, screenX + 8, screenY + 21, 2, 10, "#b0ef74");
-  drawPixelLine(gameContext, screenX + 17, screenY + 15, 2, 10, "#a7e868");
-  drawPixelLine(gameContext, screenX + 31, screenY + 14, 2, 12, "#ace96d");
-  drawPixelLine(gameContext, screenX + 42, screenY + 24, 2, 8, "#90d758");
+function drawGrassTile(screenX, screenY, tileX, tileY) {
+  const variant = Math.abs(tileX * 7 + tileY * 13) % 3;
+  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#8dd055");
+  drawPixelRect(gameContext, screenX, screenY + 24, 48, 24, "#79be46");
+  drawPixelRect(gameContext, screenX + 3, screenY + 6, 12, 9, "#a6dd6d");
+  drawPixelRect(gameContext, screenX + 18, screenY + 4, 9, 6, "#98d860");
+  drawPixelRect(gameContext, screenX + 31, screenY + 9, 12, 9, "#8ad152");
+  drawPixelRect(gameContext, screenX + 6, screenY + 25, 9, 11, "#6bae3c");
+  drawPixelRect(gameContext, screenX + 18, screenY + 28, 12, 11, "#5da236");
+  drawPixelRect(gameContext, screenX + 33, screenY + 29, 10, 10, "#4c912b");
+  drawPixelLine(gameContext, screenX + 8, screenY + 18, 3, 12, "#bff183");
+  drawPixelLine(gameContext, screenX + 20, screenY + 13, 3, 13, "#b5eb78");
+  drawPixelLine(gameContext, screenX + 34, screenY + 17, 3, 12, "#a9e16d");
+  drawPixelLine(gameContext, screenX + 41, screenY + 24, 2, 10, "#92d25a");
+
+  // Small sprite overlays help the terrain match the richer bush and tree style.
+  if (variant === 0) {
+    gameContext.drawImage(state.assets.grassTuft, screenX + 3, screenY + 28, 18, 9);
+  } else if (variant === 1) {
+    gameContext.drawImage(state.assets.grassTuft, screenX + 22, screenY + 26, 18, 9);
+  }
 }
 
-function drawPathTile(screenX, screenY, neighbors) {
-  drawGrassTile(screenX, screenY);
-  drawPixelRect(gameContext, screenX + 4, screenY + 4, 40, 40, "#ceb57d");
-  drawPixelRect(gameContext, screenX + 6, screenY + 6, 36, 36, "#e1cd95");
-  drawPixelRect(gameContext, screenX + 8, screenY + 8, 32, 32, "#ebd8a3");
-  drawPixelRect(gameContext, screenX + 10, screenY + 12, 4, 3, "#c59f61");
-  drawPixelRect(gameContext, screenX + 19, screenY + 9, 3, 2, "#d4b174");
-  drawPixelRect(gameContext, screenX + 28, screenY + 14, 4, 3, "#c79e5c");
-  drawPixelRect(gameContext, screenX + 15, screenY + 23, 4, 4, "#d6b276");
-  drawPixelRect(gameContext, screenX + 31, screenY + 29, 3, 3, "#c99857");
-  drawPixelRect(gameContext, screenX + 9, screenY + 33, 5, 3, "#d0aa67");
+function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {
+  drawGrassTile(screenX, screenY, tileX, tileY);
+  drawPixelRect(gameContext, screenX + 6, screenY + 6, 36, 36, "#a87543");
+  drawPixelRect(gameContext, screenX + 9, screenY + 9, 30, 30, "#af7d49");
+  drawPixelRect(gameContext, screenX + 6, screenY + 12, 9, 9, "#996537");
+  drawPixelRect(gameContext, screenX + 15, screenY + 6, 12, 6, "#bc8a54");
+  drawPixelRect(gameContext, screenX + 27, screenY + 9, 9, 9, "#9f6b3b");
+  drawPixelRect(gameContext, screenX + 12, screenY + 21, 12, 9, "#87532b");
+  drawPixelRect(gameContext, screenX + 27, screenY + 24, 9, 9, "#946137");
+  drawPixelRect(gameContext, screenX + 18, screenY + 30, 12, 6, "#c09059");
+  drawPixelRect(gameContext, screenX + 9, screenY + 33, 9, 3, "#6f4424");
+  drawPixelRect(gameContext, screenX + 30, screenY + 15, 6, 3, "#d0a26f");
 
   // These trims shape the path so corners feel hand-placed rather than boxy.
   if (!neighbors.up) {
-    drawPixelRect(gameContext, screenX + 10, screenY, 28, 8, "#d6ba83");
+    drawPixelRect(gameContext, screenX + 9, screenY, 30, 9, "#b7864f");
   }
   if (!neighbors.down) {
-    drawPixelRect(gameContext, screenX + 10, screenY + 40, 28, 8, "#d6ba83");
+    drawPixelRect(gameContext, screenX + 9, screenY + 39, 30, 9, "#b7864f");
   }
   if (!neighbors.left) {
-    drawPixelRect(gameContext, screenX, screenY + 10, 8, 28, "#d6ba83");
+    drawPixelRect(gameContext, screenX, screenY + 9, 9, 30, "#b7864f");
   }
   if (!neighbors.right) {
-    drawPixelRect(gameContext, screenX + 40, screenY + 10, 8, 28, "#d6ba83");
+    drawPixelRect(gameContext, screenX + 39, screenY + 9, 9, 30, "#b7864f");
   }
 }
 
 function drawFlowerPatch(screenX, screenY) {
-  drawGrassTile(screenX, screenY);
-  const blooms = [
-    { x: 10, y: 13, color: "#ff516e" },
-    { x: 17, y: 27, color: "#ffe671" },
-    { x: 24, y: 11, color: "#fffef2" },
-    { x: 31, y: 23, color: "#8fd8ff" },
-    { x: 20, y: 18, color: "#de8cff" }
-  ];
-
-  for (const bloom of blooms) {
-    drawPixelRect(gameContext, screenX + bloom.x, screenY + bloom.y, 4, 4, bloom.color);
-    drawPixelRect(gameContext, screenX + bloom.x + 1, screenY + bloom.y + 4, 2, 5, "#2f7a2d");
-  }
+  drawGrassTile(screenX, screenY, 0, 0);
 }
 
 function drawCliffTopTile(screenX, screenY) {
-  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#8a877f");
-  drawPixelRect(gameContext, screenX, screenY, 48, 6, "#b5b1ab");
-  drawPixelRect(gameContext, screenX, screenY + 6, 48, 5, "#66635f");
-  drawPixelRect(gameContext, screenX + 3, screenY + 14, 14, 8, "#75716b");
-  drawPixelRect(gameContext, screenX + 17, screenY + 19, 12, 7, "#6b6762");
-  drawPixelRect(gameContext, screenX + 30, screenY + 11, 11, 8, "#7d7973");
-  drawPixelRect(gameContext, screenX + 8, screenY + 31, 10, 7, "#5c5955");
-  drawPixelRect(gameContext, screenX + 22, screenY + 30, 14, 9, "#726f69");
-  drawPixelRect(gameContext, screenX + 38, screenY + 24, 6, 11, "#54514d");
-  drawPixelRect(gameContext, screenX + 0, screenY + 38, 48, 10, "#7f7b76");
+  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#8f8b84");
+  drawPixelRect(gameContext, screenX, screenY, 48, 6, "#bbb6b0");
+  drawPixelRect(gameContext, screenX, screenY + 6, 48, 6, "#66635f");
+  drawPixelRect(gameContext, screenX + 3, screenY + 15, 12, 9, "#7d7973");
+  drawPixelRect(gameContext, screenX + 18, screenY + 12, 9, 9, "#9b9791");
+  drawPixelRect(gameContext, screenX + 30, screenY + 18, 12, 9, "#716d68");
+  drawPixelRect(gameContext, screenX + 9, screenY + 30, 9, 9, "#5f5b57");
+  drawPixelRect(gameContext, screenX + 24, screenY + 30, 12, 9, "#706c67");
+  drawPixelRect(gameContext, screenX + 39, screenY + 27, 6, 12, "#53504d");
 }
 
 function drawCliffWallTile(screenX, screenY) {
-  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#5e5b58");
-  drawPixelRect(gameContext, screenX + 2, screenY, 10, 48, "#8f8b86");
-  drawPixelRect(gameContext, screenX + 14, screenY, 8, 48, "#78746f");
-  drawPixelRect(gameContext, screenX + 24, screenY, 8, 48, "#4c4946");
-  drawPixelRect(gameContext, screenX + 35, screenY, 6, 48, "#68645f");
-  drawPixelRect(gameContext, screenX + 41, screenY, 5, 48, "#9a9691");
-  drawPixelRect(gameContext, screenX + 6, screenY + 10, 3, 28, "#c0bbb4");
-  drawPixelRect(gameContext, screenX + 18, screenY + 8, 3, 24, "#918d88");
-  drawPixelRect(gameContext, screenX + 28, screenY + 15, 3, 19, "#393633");
+  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#625f5c");
+  drawPixelRect(gameContext, screenX + 3, screenY, 9, 48, "#938f89");
+  drawPixelRect(gameContext, screenX + 15, screenY, 6, 48, "#78746f");
+  drawPixelRect(gameContext, screenX + 24, screenY, 9, 48, "#4a4744");
+  drawPixelRect(gameContext, screenX + 36, screenY, 6, 48, "#6d6964");
+  drawPixelRect(gameContext, screenX + 42, screenY, 6, 48, "#a19d97");
+  drawPixelRect(gameContext, screenX + 6, screenY + 12, 3, 27, "#c1bcb5");
+  drawPixelRect(gameContext, screenX + 18, screenY + 9, 3, 24, "#938f8a");
+  drawPixelRect(gameContext, screenX + 30, screenY + 18, 3, 18, "#353230");
 }
 
 function drawOverlookTile(screenX, screenY) {
-  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#9e9584");
-  drawPixelRect(gameContext, screenX, screenY + 7, 48, 41, "#8a8276");
-  drawPixelRect(gameContext, screenX + 5, screenY, 38, 9, "#d0c39a");
-  drawPixelRect(gameContext, screenX + 9, screenY + 14, 10, 6, "#7d756b");
-  drawPixelRect(gameContext, screenX + 27, screenY + 18, 12, 7, "#71695d");
-  drawPixelRect(gameContext, screenX + 16, screenY + 29, 18, 6, "#635d54");
+  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#d7d0c6");
+  drawPixelRect(gameContext, screenX + 0, screenY + 0, 12, 12, "#ece8df");
+  drawPixelRect(gameContext, screenX + 12, screenY + 0, 12, 12, "#d4d0c9");
+  drawPixelRect(gameContext, screenX + 24, screenY + 0, 12, 12, "#e7e2d9");
+  drawPixelRect(gameContext, screenX + 36, screenY + 0, 12, 12, "#cfcbc4");
+  drawPixelRect(gameContext, screenX + 0, screenY + 12, 12, 12, "#d7d2ca");
+  drawPixelRect(gameContext, screenX + 12, screenY + 12, 12, 12, "#efebe4");
+  drawPixelRect(gameContext, screenX + 24, screenY + 12, 12, 12, "#dad5ce");
+  drawPixelRect(gameContext, screenX + 36, screenY + 12, 12, 12, "#efe9e0");
+  drawPixelRect(gameContext, screenX + 0, screenY + 24, 12, 12, "#ece6dc");
+  drawPixelRect(gameContext, screenX + 12, screenY + 24, 12, 12, "#d3cec6");
+  drawPixelRect(gameContext, screenX + 24, screenY + 24, 12, 12, "#e8e3da");
+  drawPixelRect(gameContext, screenX + 36, screenY + 24, 12, 12, "#d0cbc4");
+  drawPixelRect(gameContext, screenX + 0, screenY + 36, 12, 12, "#d6d1ca");
+  drawPixelRect(gameContext, screenX + 12, screenY + 36, 12, 12, "#ebe5dc");
+  drawPixelRect(gameContext, screenX + 24, screenY + 36, 12, 12, "#d5d0c8");
+  drawPixelRect(gameContext, screenX + 36, screenY + 36, 12, 12, "#e8e2d8");
+  drawPixelRect(gameContext, screenX + 11, screenY + 11, 2, 2, "#bdb4a8");
+  drawPixelRect(gameContext, screenX + 35, screenY + 23, 2, 2, "#bfb5aa");
+  drawPixelRect(gameContext, screenX + 23, screenY + 35, 2, 2, "#beb6ab");
 }
 
 function drawBench(screenX, screenY) {
@@ -540,10 +572,10 @@ function drawTile(tileX, tileY, cameraX, cameraY) {
     if (flowerSet.has(positionKey(tileX, tileY))) {
       drawFlowerPatch(screenX, screenY);
     } else {
-      drawGrassTile(screenX, screenY);
+      drawGrassTile(screenX, screenY, tileX, tileY);
     }
   } else if (terrain === "p") {
-    drawPathTile(screenX, screenY, getPathNeighbors(tileX, tileY));
+    drawPathTile(screenX, screenY, tileX, tileY, getPathNeighbors(tileX, tileY));
   } else if (terrain === "c") {
     drawCliffTopTile(screenX, screenY);
   } else if (terrain === "v") {
@@ -560,6 +592,21 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
 
   if (bushSet.has(tileKey)) {
     gameContext.drawImage(state.assets.bush, screenX + BUSH_DRAW_OFFSET.x, screenY + BUSH_DRAW_OFFSET.y);
+  }
+
+  if (shrubSet.has(tileKey)) {
+    const shrub = state.assets.shrubs[(tileX + tileY) % state.assets.shrubs.length];
+    gameContext.drawImage(shrub, screenX + 4, screenY + 22, 24, 16);
+  }
+
+  if (rockSet.has(tileKey)) {
+    const rock = state.assets.rocks[(tileX + tileY) % state.assets.rocks.length];
+    gameContext.drawImage(rock, screenX + 13, screenY + 17, 22, 20);
+  }
+
+  if (flowerSet.has(tileKey)) {
+    const flower = state.assets.flowers[(tileX + tileY) % state.assets.flowers.length];
+    gameContext.drawImage(flower, screenX + 16, screenY + 18, 14, 20);
   }
 
   if (tileX === BENCH_POSITION.x && tileY === BENCH_POSITION.y) {
@@ -593,7 +640,7 @@ function renderGame(timestamp = 0) {
   state.lastTimestamp = timestamp;
   state.sparkleTime += delta;
 
-  if (state.sparkleTime >= 100) {
+  if (state.sparkleTime >= 800) {
     state.sparkleFrame = (state.sparkleFrame + 1) % state.assets.sparkleFrames.length;
     state.sparkleTime = 0;
   }
@@ -637,11 +684,12 @@ function launchBurst() {
     x: Math.round(Math.random() * 250 + 90),
     y: Math.round(Math.random() * 90 + 34),
     frame: 0,
+    frameTime: 0,
     shapeOffset: shapes[Math.floor(Math.random() * shapes.length)]
   });
 }
 
-function drawFireworks() {
+function drawFireworks(delta) {
   fireworksContext.clearRect(0, 0, VIEWPORT_PIXELS, VIEWPORT_PIXELS);
   fireworksContext.imageSmoothingEnabled = false;
 
@@ -650,12 +698,18 @@ function drawFireworks() {
   for (const burst of state.fireworks) {
     const sourceFrame = state.assets.fireworkFrames[(burst.frame + burst.shapeOffset) % state.assets.fireworkFrames.length];
     fireworksContext.drawImage(sourceFrame, burst.x - sourceFrame.width / 2, burst.y - sourceFrame.height / 2);
-    burst.frame += 1;
+    burst.frameTime += delta;
+    while (burst.frameTime >= 128) {
+      burst.frame += 1;
+      burst.frameTime -= 128;
+    }
   }
 }
 
-function fireworkLoop() {
-  drawFireworks();
+function fireworkLoop(timestamp = 0) {
+  const delta = state.fireworkLastTimestamp === 0 ? 16 : timestamp - state.fireworkLastTimestamp;
+  state.fireworkLastTimestamp = timestamp;
+  drawFireworks(delta);
   window.requestAnimationFrame(fireworkLoop);
 }
 
@@ -665,8 +719,9 @@ function startFireworks() {
   }
 
   state.isFireworksRunning = true;
+  state.fireworkLastTimestamp = 0;
   launchBurst();
-  state.fireworkTimer = window.setInterval(launchBurst, 420);
+  state.fireworkTimer = window.setInterval(launchBurst, 3360);
   fireworkLoop();
 }
 

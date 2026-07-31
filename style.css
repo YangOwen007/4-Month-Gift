@@ -240,13 +240,22 @@ select {
   position: absolute;
   inset: 0;
   display: grid;
-  place-content: center;
+  align-content: start;
   text-align: center;
-  padding: 24px;
-  background: linear-gradient(180deg, rgba(18, 13, 18, 0.08), rgba(18, 13, 18, 0.34));
+  padding: 48px 24px 24px;
+  background: linear-gradient(180deg, rgba(18, 13, 18, 0.26), rgba(18, 13, 18, 0.02) 38%, rgba(18, 13, 18, 0));
   color: #fff8ed;
   pointer-events: none;
   z-index: 5;
+}
+
+.ending-banner h2 {
+  font-size: clamp(1.4rem, 3.6vw, 2.7rem);
+}
+
+.ending-banner p {
+  max-width: 540px;
+  margin: 12px auto 0;
 }
 
 .ending-banner h2,

@@ -47,13 +47,13 @@ const GAME_CONFIG = {
     }
   ],
   assets: {
-    tree: "assets/tree-clean.png",
-    bush: "assets/bush-clean.png",
-    grassTuft: "assets/decor/grass-tuft.png",
-    rocks: ["assets/decor/rock-0.png", "assets/decor/rock-1.png", "assets/decor/rock-2.png"],
-    shrubs: ["assets/decor/shrub-0.png", "assets/decor/shrub-1.png", "assets/decor/shrub-2.png"],
-    flowers: ["assets/decor/flower-0.png", "assets/decor/flower-1.png", "assets/decor/flower-2.png"],
-    cliff: "assets/cliff-reference.png",
+    grass: "assets/cohesive/grass.png",
+    stone: "assets/cohesive/stone.png",
+    cliff: "assets/cohesive/cliff.png",
+    tree: "assets/cohesive/tree.png",
+    bush: "assets/cohesive/bush.png",
+    rock: "assets/cohesive/rock.png",
+    bench: "assets/cohesive/bench.png",
     ocean: "assets/ocean-night.png",
     sparkles: Array.from({ length: 12 }, (_, index) => `assets/sparkles/sparkle-${index}.png`),
     fireworks: Array.from({ length: 7 }, (_, index) => `assets/fireworks/firework-${index}.png`)
@@ -117,20 +117,9 @@ const BUSH_POSITIONS = [
   { x: 17, y: 11 }, { x: 6, y: 9 }, { x: 20, y: 8 }, { x: 8, y: 20 }
 ];
 
-const FLOWER_POSITIONS = [
-  { x: 7, y: 29 }, { x: 18, y: 29 }, { x: 5, y: 23 }, { x: 20, y: 23 },
-  { x: 8, y: 18 }, { x: 18, y: 18 }, { x: 9, y: 15 }, { x: 18, y: 15 },
-  { x: 10, y: 10 }, { x: 15, y: 10 }, { x: 8, y: 7 }, { x: 18, y: 7 }
-];
-
 const ROCK_POSITIONS = [
   { x: 10, y: 24 }, { x: 19, y: 24 }, { x: 8, y: 19 },
   { x: 18, y: 20 }, { x: 10, y: 6 }, { x: 16, y: 6 }
-];
-
-const SHRUB_POSITIONS = [
-  { x: 6, y: 29 }, { x: 20, y: 29 }, { x: 4, y: 22 }, { x: 22, y: 22 },
-  { x: 5, y: 12 }, { x: 21, y: 12 }, { x: 9, y: 9 }, { x: 17, y: 9 }
 ];
 
 const PATH_SEGMENTS = [
@@ -149,8 +138,8 @@ const PATH_SEGMENTS = [
 const TERRAIN_ROWS = RAW_TERRAIN_ROWS.map((row) => row.slice(0, GAME_CONFIG.mapWidth).padEnd(GAME_CONFIG.mapWidth, "g"));
 const VIEWPORT_PIXELS = GAME_CONFIG.viewportTiles * GAME_CONFIG.tileSize;
 const BENCH_POSITION = GAME_CONFIG.bench;
-const TREE_DRAW_OFFSET = { x: 10, y: 8 };
-const BUSH_DRAW_OFFSET = { x: 4, y: 20 };
+const TREE_DRAW_OFFSET = { x: 8, y: 2 };
+const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 
 const gameCanvas = document.querySelector("#game-canvas");
 const gameContext = gameCanvas.getContext("2d");
@@ -228,9 +217,7 @@ const PATH_TILES = buildPathTiles();
 const stopByPosition = new Map(GAME_CONFIG.stops.map((stop) => [positionKey(stop.x, stop.y), stop]));
 const treeSet = new Set(TREE_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const bushSet = new Set(BUSH_POSITIONS.map((item) => positionKey(item.x, item.y)));
-const flowerSet = new Set(FLOWER_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const rockSet = new Set(ROCK_POSITIONS.map((item) => positionKey(item.x, item.y)));
-const shrubSet = new Set(SHRUB_POSITIONS.map((item) => positionKey(item.x, item.y)));
 
 function getTerrainType(x, y) {
   if (PATH_TILES.has(positionKey(x, y))) {
@@ -280,28 +267,76 @@ function loadImage(src) {
   });
 }
 
+function trimSprite(image, threshold = 32) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+
+  let minX = canvas.width;
+  let minY = canvas.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  // Sprite art from the generated sheet sits on white, so we cut that cleanly here.
+  for (let index = 0; index < pixels.length; index += 4) {
+    const red = pixels[index];
+    const green = pixels[index + 1];
+    const blue = pixels[index + 2];
+    const distance = Math.abs(255 - red) + Math.abs(255 - green) + Math.abs(255 - blue);
+    if (distance <= threshold) {
+      pixels[index + 3] = 0;
+      continue;
+    }
+
+    const pixelIndex = index / 4;
+    const x = pixelIndex % canvas.width;
+    const y = Math.floor(pixelIndex / canvas.width);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+
+  context.putImageData(imageData, 0, 0);
+
+  if (maxX < minX || maxY < minY) {
+    return canvas;
+  }
+
+  const trimmed = document.createElement("canvas");
+  trimmed.width = maxX - minX + 1;
+  trimmed.height = maxY - minY + 1;
+  const trimmedContext = trimmed.getContext("2d");
+  trimmedContext.drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+  return trimmed;
+}
+
 async function loadAssets() {
-  const [treeImage, bushImage, grassTuftImage, rockImages, shrubImages, flowerImages, cliffImage, oceanImage, sparkleFrames, fireworkFrames] = await Promise.all([
+  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, oceanImage, sparkleFrames, fireworkFrames] = await Promise.all([
+    loadImage(GAME_CONFIG.assets.grass),
+    loadImage(GAME_CONFIG.assets.stone),
+    loadImage(GAME_CONFIG.assets.cliff),
     loadImage(GAME_CONFIG.assets.tree),
     loadImage(GAME_CONFIG.assets.bush),
-    loadImage(GAME_CONFIG.assets.grassTuft),
-    Promise.all(GAME_CONFIG.assets.rocks.map((src) => loadImage(src))),
-    Promise.all(GAME_CONFIG.assets.shrubs.map((src) => loadImage(src))),
-    Promise.all(GAME_CONFIG.assets.flowers.map((src) => loadImage(src))),
-    loadImage(GAME_CONFIG.assets.cliff),
+    loadImage(GAME_CONFIG.assets.rock),
+    loadImage(GAME_CONFIG.assets.bench),
     loadImage(GAME_CONFIG.assets.ocean),
     Promise.all(GAME_CONFIG.assets.sparkles.map((src) => loadImage(src))),
     Promise.all(GAME_CONFIG.assets.fireworks.map((src) => loadImage(src)))
   ]);
 
   return {
-    tree: treeImage,
-    bush: bushImage,
-    grassTuft: grassTuftImage,
-    rocks: rockImages,
-    shrubs: shrubImages,
-    flowers: flowerImages,
+    grass: grassImage,
+    stone: stoneImage,
     cliff: cliffImage,
+    tree: trimSprite(treeImage, 96),
+    bush: trimSprite(bushImage, 96),
+    rock: trimSprite(rockImage, 96),
+    bench: trimSprite(benchImage, 96),
     ocean: oceanImage,
     sparkleFrames,
     fireworkFrames
@@ -351,7 +386,7 @@ function getCameraOrigin() {
   // The finale slowly pushes the camera upward so the ocean view takes over.
   return {
     x: centered.x,
-    y: Math.round(centered.y + lerp(0, GAME_CONFIG.tileSize * 3.5, state.endingCutscene.progress))
+    y: Math.round(centered.y + lerp(0, GAME_CONFIG.tileSize * 5.5, state.endingCutscene.progress))
   };
 }
 
@@ -364,13 +399,13 @@ function drawPixelLine(context, x, y, width, height, color) {
   drawPixelRect(context, x, y, width, height, color);
 }
 
-function drawCliffTexture(screenX, screenY, tileX, tileY) {
-  const textureWidth = state.assets.cliff.width - GAME_CONFIG.tileSize;
-  const textureHeight = state.assets.cliff.height - GAME_CONFIG.tileSize;
-  const sourceX = Math.abs((tileX * 73) % textureWidth);
-  const sourceY = Math.abs((tileY * 61) % textureHeight);
+function drawTextureTile(image, screenX, screenY, tileX, tileY) {
+  const textureWidth = Math.max(1, image.width - GAME_CONFIG.tileSize);
+  const textureHeight = Math.max(1, image.height - GAME_CONFIG.tileSize);
+  const sourceX = Math.abs((tileX * 37) % textureWidth);
+  const sourceY = Math.abs((tileY * 29) % textureHeight);
   gameContext.drawImage(
-    state.assets.cliff,
+    image,
     sourceX,
     sourceY,
     GAME_CONFIG.tileSize,
@@ -383,97 +418,55 @@ function drawCliffTexture(screenX, screenY, tileX, tileY) {
 }
 
 function drawGrassTile(screenX, screenY, tileX, tileY) {
-  const variant = Math.abs(tileX * 7 + tileY * 13) % 3;
-  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#89cd51");
-  drawPixelRect(gameContext, screenX, screenY + 26, 48, 22, "#72b640");
-  gameContext.drawImage(state.assets.grassTuft, screenX - 4, screenY + 5, 24, 12);
-  gameContext.drawImage(state.assets.grassTuft, screenX + 12, screenY + 3, 22, 11);
-  gameContext.drawImage(state.assets.grassTuft, screenX + 26, screenY + 7, 24, 12);
-  gameContext.drawImage(state.assets.grassTuft, screenX + 2, screenY + 19, 22, 11);
-  gameContext.drawImage(state.assets.grassTuft, screenX + 18, screenY + 21, 24, 12);
-
-  if (variant === 0) {
-    gameContext.drawImage(state.assets.grassTuft, screenX + 8, screenY + 31, 20, 10);
-  } else if (variant === 1) {
-    gameContext.drawImage(state.assets.grassTuft, screenX + 22, screenY + 29, 20, 10);
-  } else {
-    gameContext.drawImage(state.assets.grassTuft, screenX + 14, screenY + 33, 18, 9);
-  }
+  drawTextureTile(state.assets.grass, screenX, screenY, tileX, tileY);
 }
 
 function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {
   drawGrassTile(screenX, screenY, tileX, tileY);
-  drawPixelRect(gameContext, screenX + 6, screenY + 6, 36, 36, "#a87543");
-  drawPixelRect(gameContext, screenX + 9, screenY + 9, 30, 30, "#af7d49");
-  drawPixelRect(gameContext, screenX + 6, screenY + 12, 9, 9, "#996537");
-  drawPixelRect(gameContext, screenX + 15, screenY + 6, 12, 6, "#bc8a54");
-  drawPixelRect(gameContext, screenX + 27, screenY + 9, 9, 9, "#9f6b3b");
-  drawPixelRect(gameContext, screenX + 12, screenY + 21, 12, 9, "#87532b");
-  drawPixelRect(gameContext, screenX + 27, screenY + 24, 9, 9, "#946137");
-  drawPixelRect(gameContext, screenX + 18, screenY + 30, 12, 6, "#c09059");
-  drawPixelRect(gameContext, screenX + 9, screenY + 33, 9, 3, "#6f4424");
-  drawPixelRect(gameContext, screenX + 30, screenY + 15, 6, 3, "#d0a26f");
+  const centerX = screenX + 12;
+  const centerY = screenY + 12;
 
-  // These trims shape the path so corners feel hand-placed rather than boxy.
-  if (!neighbors.up) {
-    drawPixelRect(gameContext, screenX + 9, screenY, 30, 9, "#b7864f");
-  }
-  if (!neighbors.down) {
-    drawPixelRect(gameContext, screenX + 9, screenY + 39, 30, 9, "#b7864f");
-  }
-  if (!neighbors.left) {
-    drawPixelRect(gameContext, screenX, screenY + 9, 9, 30, "#b7864f");
-  }
-  if (!neighbors.right) {
-    drawPixelRect(gameContext, screenX + 39, screenY + 9, 9, 30, "#b7864f");
-  }
-}
+  // The route is drawn as one connected trail, so it reads like a path instead of tile stamps.
+  drawPixelRect(gameContext, centerX, centerY, 24, 24, "#caa56d");
+  drawPixelRect(gameContext, centerX + 2, centerY + 2, 20, 20, "#ddb885");
 
-function drawFlowerPatch(screenX, screenY) {
-  drawGrassTile(screenX, screenY, Math.round(screenX / GAME_CONFIG.tileSize), Math.round(screenY / GAME_CONFIG.tileSize));
+  if (neighbors.up) {
+    drawPixelRect(gameContext, centerX, screenY, 24, 14, "#caa56d");
+    drawPixelRect(gameContext, centerX + 2, screenY, 20, 12, "#ddb885");
+  }
+  if (neighbors.down) {
+    drawPixelRect(gameContext, centerX, screenY + 34, 24, 14, "#caa56d");
+    drawPixelRect(gameContext, centerX + 2, screenY + 36, 20, 12, "#ddb885");
+  }
+  if (neighbors.left) {
+    drawPixelRect(gameContext, screenX, centerY, 14, 24, "#caa56d");
+    drawPixelRect(gameContext, screenX, centerY + 2, 12, 20, "#ddb885");
+  }
+  if (neighbors.right) {
+    drawPixelRect(gameContext, screenX + 34, centerY, 14, 24, "#caa56d");
+    drawPixelRect(gameContext, screenX + 36, centerY + 2, 12, 20, "#ddb885");
+  }
+
+  drawPixelRect(gameContext, screenX + 18, screenY + 16, 3, 3, "#b98953");
+  drawPixelRect(gameContext, screenX + 27, screenY + 25, 3, 2, "#b98953");
+  drawPixelRect(gameContext, screenX + 14, screenY + 31, 2, 2, "#efd2a1");
 }
 
 function drawCliffTopTile(screenX, screenY, tileX, tileY) {
-  drawCliffTexture(screenX, screenY, tileX, tileY);
-  drawPixelRect(gameContext, screenX, screenY, 48, 8, "#c7c2bc");
-  drawPixelRect(gameContext, screenX, screenY + 8, 48, 4, "#4f4a46");
-  gameContext.drawImage(state.assets.grassTuft, screenX + 3, screenY + 1, 20, 10);
-  gameContext.drawImage(state.assets.grassTuft, screenX + 25, screenY + 0, 20, 10);
+  drawTextureTile(state.assets.stone, screenX, screenY, tileX, tileY);
+  drawPixelRect(gameContext, screenX, screenY, 48, 5, "rgba(255,255,255,0.12)");
 }
 
 function drawCliffWallTile(screenX, screenY, tileX, tileY) {
-  drawCliffTexture(screenX, screenY, tileX, tileY);
+  drawTextureTile(state.assets.cliff, screenX, screenY, tileX, tileY);
 }
 
-function drawOverlookTile(screenX, screenY) {
-  drawPixelRect(gameContext, screenX, screenY, 48, 48, "#d7d0c6");
-  drawPixelRect(gameContext, screenX + 0, screenY + 0, 12, 12, "#ece8df");
-  drawPixelRect(gameContext, screenX + 12, screenY + 0, 12, 12, "#d4d0c9");
-  drawPixelRect(gameContext, screenX + 24, screenY + 0, 12, 12, "#e7e2d9");
-  drawPixelRect(gameContext, screenX + 36, screenY + 0, 12, 12, "#cfcbc4");
-  drawPixelRect(gameContext, screenX + 0, screenY + 12, 12, 12, "#d7d2ca");
-  drawPixelRect(gameContext, screenX + 12, screenY + 12, 12, 12, "#efebe4");
-  drawPixelRect(gameContext, screenX + 24, screenY + 12, 12, 12, "#dad5ce");
-  drawPixelRect(gameContext, screenX + 36, screenY + 12, 12, 12, "#efe9e0");
-  drawPixelRect(gameContext, screenX + 0, screenY + 24, 12, 12, "#ece6dc");
-  drawPixelRect(gameContext, screenX + 12, screenY + 24, 12, 12, "#d3cec6");
-  drawPixelRect(gameContext, screenX + 24, screenY + 24, 12, 12, "#e8e3da");
-  drawPixelRect(gameContext, screenX + 36, screenY + 24, 12, 12, "#d0cbc4");
-  drawPixelRect(gameContext, screenX + 0, screenY + 36, 12, 12, "#d6d1ca");
-  drawPixelRect(gameContext, screenX + 12, screenY + 36, 12, 12, "#ebe5dc");
-  drawPixelRect(gameContext, screenX + 24, screenY + 36, 12, 12, "#d5d0c8");
-  drawPixelRect(gameContext, screenX + 36, screenY + 36, 12, 12, "#e8e2d8");
-  drawPixelRect(gameContext, screenX + 11, screenY + 11, 2, 2, "#bdb4a8");
-  drawPixelRect(gameContext, screenX + 35, screenY + 23, 2, 2, "#bfb5aa");
-  drawPixelRect(gameContext, screenX + 23, screenY + 35, 2, 2, "#beb6ab");
+function drawOverlookTile(screenX, screenY, tileX, tileY) {
+  drawTextureTile(state.assets.stone, screenX, screenY, tileX + 2, tileY + 2);
 }
 
 function drawBench(screenX, screenY) {
-  drawPixelRect(gameContext, screenX + 10, screenY + 28, 26, 4, "#4c2f1d");
-  drawPixelRect(gameContext, screenX + 11, screenY + 22, 24, 5, "#83552f");
-  drawPixelRect(gameContext, screenX + 13, screenY + 17, 20, 4, "#9f6f46");
-  drawPixelRect(gameContext, screenX + 14, screenY + 33, 4, 10, "#3c2415");
-  drawPixelRect(gameContext, screenX + 28, screenY + 33, 4, 10, "#3c2415");
+  gameContext.drawImage(state.assets.bench, screenX + 8, screenY + 22, 32, 20);
 }
 
 function drawOceanBackdrop() {
@@ -504,30 +497,32 @@ function getPathNeighbors(x, y) {
 function drawPlayer() {
   const center = VIEWPORT_PIXELS / 2;
   const cutsceneOffset = state.endingCutscene.active
-    ? Math.round(lerp(0, GAME_CONFIG.tileSize * 3.5, state.endingCutscene.progress))
+    ? Math.round(lerp(0, GAME_CONFIG.tileSize * 5.5, state.endingCutscene.progress))
     : 0;
   const baseX = center - GAME_CONFIG.tileSize / 2;
   const baseY = center - GAME_CONFIG.tileSize / 2 + cutsceneOffset + (state.stepPhase === 0 ? -1 : 1);
 
-  // This sprite is hand-built from blocks so it always stays perfectly sharp.
-  drawPixelRect(gameContext, baseX + 12, baseY + 3, 24, 5, "#1d1b27");
-  drawPixelRect(gameContext, baseX + 9, baseY + 8, 30, 8, "#b03b46");
-  drawPixelRect(gameContext, baseX + 14, baseY + 16, 20, 8, "#f0c9a3");
-  drawPixelRect(gameContext, baseX + 10, baseY + 24, 28, 12, "#385fc0");
-  drawPixelRect(gameContext, baseX + 13, baseY + 36, 8, 10, "#2c2530");
-  drawPixelRect(gameContext, baseX + 27, baseY + 36, 8, 10, "#2c2530");
-  drawPixelRect(gameContext, baseX + 16, baseY + 9, 16, 3, "#f8f1eb");
-  drawPixelRect(gameContext, baseX + 11, baseY + 24, 4, 7, "#f0c9a3");
-  drawPixelRect(gameContext, baseX + 33, baseY + 24, 4, 7, "#f0c9a3");
+  // The player gets a little more detail here so they belong better with the new map art.
+  drawPixelRect(gameContext, baseX + 11, baseY + 4, 26, 4, "#1f1c27");
+  drawPixelRect(gameContext, baseX + 8, baseY + 8, 32, 8, "#b53f48");
+  drawPixelRect(gameContext, baseX + 12, baseY + 9, 18, 3, "#fff7ef");
+  drawPixelRect(gameContext, baseX + 14, baseY + 16, 20, 9, "#f2ceb0");
+  drawPixelRect(gameContext, baseX + 10, baseY + 25, 28, 13, "#4066c7");
+  drawPixelRect(gameContext, baseX + 12, baseY + 26, 8, 5, "#e3efe8");
+  drawPixelRect(gameContext, baseX + 28, baseY + 26, 8, 5, "#e3efe8");
+  drawPixelRect(gameContext, baseX + 13, baseY + 38, 8, 9, "#2e2734");
+  drawPixelRect(gameContext, baseX + 27, baseY + 38, 8, 9, "#2e2734");
+  drawPixelRect(gameContext, baseX + 11, baseY + 26, 3, 8, "#f2ceb0");
+  drawPixelRect(gameContext, baseX + 34, baseY + 26, 3, 8, "#f2ceb0");
 
   if (state.facing === "left") {
-    drawPixelRect(gameContext, baseX + 12, baseY + 18, 3, 3, "#2b1a16");
+    drawPixelRect(gameContext, baseX + 14, baseY + 19, 3, 3, "#2b1a16");
   } else if (state.facing === "right") {
-    drawPixelRect(gameContext, baseX + 33, baseY + 18, 3, 3, "#2b1a16");
+    drawPixelRect(gameContext, baseX + 31, baseY + 19, 3, 3, "#2b1a16");
   } else if (state.facing === "up") {
     drawPixelRect(gameContext, baseX + 18, baseY + 14, 12, 2, "#2b1a16");
   } else {
-    drawPixelRect(gameContext, baseX + 18, baseY + 20, 12, 2, "#2b1a16");
+    drawPixelRect(gameContext, baseX + 18, baseY + 21, 12, 2, "#2b1a16");
   }
 }
 
@@ -574,11 +569,7 @@ function drawTile(tileX, tileY, cameraX, cameraY) {
   }
 
   if (terrain === "g") {
-    if (flowerSet.has(positionKey(tileX, tileY))) {
-      drawFlowerPatch(screenX, screenY);
-    } else {
-      drawGrassTile(screenX, screenY, tileX, tileY);
-    }
+    drawGrassTile(screenX, screenY, tileX, tileY);
   } else if (terrain === "p") {
     drawPathTile(screenX, screenY, tileX, tileY, getPathNeighbors(tileX, tileY));
   } else if (terrain === "c") {
@@ -586,7 +577,7 @@ function drawTile(tileX, tileY, cameraX, cameraY) {
   } else if (terrain === "v") {
     drawCliffWallTile(screenX, screenY, tileX, tileY);
   } else if (terrain === "a") {
-    drawOverlookTile(screenX, screenY);
+    drawOverlookTile(screenX, screenY, tileX, tileY);
   }
 }
 
@@ -596,22 +587,11 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
   const tileKey = positionKey(tileX, tileY);
 
   if (bushSet.has(tileKey)) {
-    gameContext.drawImage(state.assets.bush, screenX + BUSH_DRAW_OFFSET.x, screenY + BUSH_DRAW_OFFSET.y);
-  }
-
-  if (shrubSet.has(tileKey)) {
-    const shrub = state.assets.shrubs[(tileX + tileY) % state.assets.shrubs.length];
-    gameContext.drawImage(shrub, screenX + 4, screenY + 22, 24, 16);
+    gameContext.drawImage(state.assets.bush, screenX + BUSH_DRAW_OFFSET.x, screenY + BUSH_DRAW_OFFSET.y, 30, 20);
   }
 
   if (rockSet.has(tileKey)) {
-    const rock = state.assets.rocks[(tileX + tileY) % state.assets.rocks.length];
-    gameContext.drawImage(rock, screenX + 3, screenY + 2, 44, 40);
-  }
-
-  if (flowerSet.has(tileKey)) {
-    const flower = state.assets.flowers[(tileX + tileY) % state.assets.flowers.length];
-    gameContext.drawImage(flower, screenX + 9, screenY - 2, 30, 42);
+    gameContext.drawImage(state.assets.rock, screenX + 8, screenY + 10, 30, 24);
   }
 
   if (tileX === BENCH_POSITION.x && tileY === BENCH_POSITION.y) {
@@ -619,7 +599,7 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
   }
 
   if (treeSet.has(tileKey)) {
-    gameContext.drawImage(state.assets.tree, screenX + TREE_DRAW_OFFSET.x, screenY + TREE_DRAW_OFFSET.y, 28, 34);
+    gameContext.drawImage(state.assets.tree, screenX + TREE_DRAW_OFFSET.x, screenY + TREE_DRAW_OFFSET.y, 32, 40);
   }
 }
 

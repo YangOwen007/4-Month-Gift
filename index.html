@@ -36,20 +36,21 @@
 
     <section class="game-card">
       <div class="game-frame">
-        <div class="sky-band"></div>
-        <div id="game-board" class="game-board" aria-label="Adventure map"></div>
-        <canvas id="fireworks-canvas" class="fireworks-canvas" aria-hidden="true"></canvas>
-        <div id="ending-banner" class="ending-banner hidden">
-          <p class="ending-label">You made it</p>
-          <h2>Happy Four Months</h2>
-          <p>The cliff lights up with fireworks and all our favorite moments.</p>
+        <div id="game-viewport" class="game-viewport" aria-label="Adventure map">
+          <canvas id="game-canvas" class="game-canvas" width="480" height="480"></canvas>
+          <canvas id="fireworks-canvas" class="fireworks-canvas" width="480" height="480" aria-hidden="true"></canvas>
+          <div id="ending-banner" class="ending-banner hidden">
+            <p class="ending-label">You made it</p>
+            <h2>Happy Four Months</h2>
+            <p>The camera drifts toward the ocean while the fireworks take over the night.</p>
+          </div>
         </div>
       </div>
       <div class="legend">
         <span><i class="legend-swatch path"></i> Path</span>
         <span><i class="legend-swatch memory"></i> Memory stop</span>
         <span><i class="legend-swatch gate"></i> Locked path</span>
-        <span><i class="legend-swatch cliff"></i> Final cliff</span>
+        <span><i class="legend-swatch cliff"></i> Cliff bench</span>
       </div>
     </section>
   </main>

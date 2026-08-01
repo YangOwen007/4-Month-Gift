@@ -138,6 +138,7 @@ const fireworksCanvas = document.querySelector("#fireworks-canvas");
 const fireworksContext = fireworksCanvas.getContext("2d");
 const objectiveText = document.querySelector("#objective-text");
 const progressText = document.querySelector("#progress-text");
+const buildVersionText = document.querySelector("#build-version");
 const dialogBackdrop = document.querySelector("#dialog-backdrop");
 const closeDialogButton = document.querySelector("#close-dialog");
 const dialogKicker = document.querySelector("#dialog-kicker");
@@ -170,6 +171,29 @@ const state = {
     fireworksStarted: false
   }
 };
+
+async function loadBuildVersion() {
+  if (!buildVersionText) {
+    return;
+  }
+
+  try {
+    // Fetching a generated version file lets the live Pages site identify exactly which deployment is active.
+    const response = await fetch(`version.json?v=${Date.now()}`, { cache: "no-store" });
+
+    if (!response.ok) {
+      throw new Error(`Version request failed with ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const shortSha = payload.sha ? String(payload.sha).slice(0, 7) : "unknown";
+    const builtAt = payload.builtAt ? new Date(payload.builtAt).toLocaleString() : "unknown time";
+    buildVersionText.textContent = `${shortSha} • ${builtAt}`;
+  } catch (error) {
+    console.warn("Build version lookup failed.", error);
+    buildVersionText.textContent = "Local preview / build info unavailable";
+  }
+}
 
 function positionKey(x, y) {
   return `${x},${y}`;
@@ -1143,6 +1167,7 @@ function handleKeydown(event) {
 async function initializeGame() {
   gameContext.imageSmoothingEnabled = false;
   fireworksContext.imageSmoothingEnabled = false;
+  loadBuildVersion();
   state.assets = await loadAssets();
   updateHud();
   renderGame();

@@ -392,6 +392,63 @@ function trimSprite(image, threshold = 32) {
   }
 }
 
+function trimTransparentSprite(image) {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+
+    if (!context) {
+      return image;
+    }
+
+    context.drawImage(image, 0, 0);
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+
+    let minX = canvas.width;
+    let minY = canvas.height;
+    let maxX = -1;
+    let maxY = -1;
+
+    // Player frames already have a transparent background, so we crop only by alpha.
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] === 0) {
+        continue;
+      }
+
+      const pixelIndex = index / 4;
+      const x = pixelIndex % canvas.width;
+      const y = Math.floor(pixelIndex / canvas.width);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+
+    if (maxX < minX || maxY < minY) {
+      return canvas;
+    }
+
+    const trimmed = document.createElement("canvas");
+    trimmed.width = maxX - minX + 1;
+    trimmed.height = maxY - minY + 1;
+    const trimmedContext = trimmed.getContext("2d");
+
+    if (!trimmedContext) {
+      return canvas;
+    }
+
+    trimmedContext.imageSmoothingEnabled = false;
+    trimmedContext.drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+    return trimmed;
+  } catch (error) {
+    console.warn("Transparent sprite trim failed, using original image instead.", error);
+    return image;
+  }
+}
+
 function createTileCanvas(image, options = {}) {
   try {
     const canvas = document.createElement("canvas");
@@ -593,10 +650,10 @@ async function loadAssets() {
   ]);
 
   const playerFrames = {
-    down: playerFrameImages.slice(0, 2).map((image) => trimSprite(image, 8)),
-    left: playerFrameImages.slice(2, 4).map((image) => trimSprite(image, 8)),
-    up: playerFrameImages.slice(4, 6).map((image) => trimSprite(image, 8)),
-    right: playerFrameImages.slice(6, 8).map((image) => trimSprite(image, 8))
+    down: playerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)),
+    left: playerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)),
+    up: playerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)),
+    right: playerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image))
   };
 
   return {

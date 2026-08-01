@@ -649,6 +649,12 @@ function drawGrassTile(screenX, screenY, tileX, tileY) {
   // A flat meadow underlay hides tiny transparent corner gaps without changing the grass art itself.
   drawPixelRect(gameContext, screenX, screenY, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize, LAND_BASE_COLOR);
   drawTextureTile(state.assets.grass, screenX, screenY, tileX, tileY);
+
+  // The source grass still leaves a couple of bright seam ticks at tile joins, so we softly cap each corner.
+  drawPixelRect(gameContext, screenX, screenY, 2, 2, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - 2, screenY, 2, 2, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX, screenY + GAME_CONFIG.tileSize - 2, 2, 2, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - 2, screenY + GAME_CONFIG.tileSize - 2, 2, 2, LAND_BASE_COLOR);
 }
 
 function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {

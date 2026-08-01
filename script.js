@@ -363,6 +363,7 @@ function createTileCanvas(image, options = {}) {
 
     if (options.healSeams) {
       healTileSeams(canvas, options.threshold ?? 760);
+      blendTileBorders(canvas, options.threshold ?? 760);
     }
 
     return canvas;
@@ -434,6 +435,48 @@ function healTileSeams(canvas, threshold = 760) {
   }
 
   imageData.data.set(nextPixels);
+  context.putImageData(imageData, 0, 0);
+}
+
+function blendTileBorders(canvas, threshold = 760) {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    return;
+  }
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+
+  const blendEdgePixel = (x, y, sampleX, sampleY) => {
+    const index = (y * canvas.width + x) * 4;
+    const brightness = pixels[index] + pixels[index + 1] + pixels[index + 2];
+
+    if (brightness < threshold) {
+      return;
+    }
+
+    const sampleIndex = (sampleY * canvas.width + sampleX) * 4;
+    pixels[index] = pixels[sampleIndex];
+    pixels[index + 1] = pixels[sampleIndex + 1];
+    pixels[index + 2] = pixels[sampleIndex + 2];
+  };
+
+  // The grass tile has bright export pixels baked into its outer border, so we pull those edge colors inward.
+  for (let x = 0; x < canvas.width; x += 1) {
+    blendEdgePixel(x, 0, x, Math.min(2, canvas.height - 1));
+    blendEdgePixel(x, 1, x, Math.min(3, canvas.height - 1));
+    blendEdgePixel(x, canvas.height - 1, x, Math.max(canvas.height - 3, 0));
+    blendEdgePixel(x, canvas.height - 2, x, Math.max(canvas.height - 4, 0));
+  }
+
+  for (let y = 0; y < canvas.height; y += 1) {
+    blendEdgePixel(0, y, Math.min(2, canvas.width - 1), y);
+    blendEdgePixel(1, y, Math.min(3, canvas.width - 1), y);
+    blendEdgePixel(canvas.width - 1, y, Math.max(canvas.width - 3, 0), y);
+    blendEdgePixel(canvas.width - 2, y, Math.max(canvas.width - 4, 0), y);
+  }
+
   context.putImageData(imageData, 0, 0);
 }
 

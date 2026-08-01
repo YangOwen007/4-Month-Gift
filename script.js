@@ -64,7 +64,7 @@ const GAME_CONFIG = {
 };
 
 // Versioned sprite URLs keep GitHub Pages and the browser from reusing an older cached cat sheet.
-const PLAYER_FRAME_VERSION = "20260801-cat-clean-2";
+const PLAYER_FRAME_VERSION = "20260801-cat-clean-3";
 const PLAYER_FRAME_PATHS = {
   down: [
     `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,

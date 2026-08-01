@@ -45,7 +45,10 @@ const server = http.createServer((request, response) => {
 
     const extension = path.extname(filePath).toLowerCase();
     response.writeHead(200, {
-      "Content-Type": MIME_TYPES[extension] || "application/octet-stream"
+      "Content-Type": MIME_TYPES[extension] || "application/octet-stream",
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0"
     });
     response.end(fileBuffer);
   });

@@ -343,106 +343,149 @@ function trimSprite(image, threshold = 32) {
   }
 }
 
-function createTileCanvas(image, backgroundColor, crop = 2, whiteThreshold = 740) {
-  const canvas = document.createElement("canvas");
-  canvas.width = GAME_CONFIG.tileSize;
-  canvas.height = GAME_CONFIG.tileSize;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.imageSmoothingEnabled = false;
-  context.fillStyle = backgroundColor;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(
-    image,
-    crop,
-    crop,
-    image.width - crop * 2,
-    image.height - crop * 2,
-    0,
-    0,
-    GAME_CONFIG.tileSize,
-    GAME_CONFIG.tileSize
-  );
+function createTileCanvas(image, options = {}) {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = GAME_CONFIG.tileSize;
+    canvas.height = GAME_CONFIG.tileSize;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
 
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const pixels = imageData.data;
-  for (let index = 0; index < pixels.length; index += 4) {
-    const brightness = pixels[index] + pixels[index + 1] + pixels[index + 2];
-    if (brightness >= whiteThreshold) {
-      pixels[index + 3] = 0;
+    if (!context) {
+      return image;
     }
+
+    context.imageSmoothingEnabled = false;
+    context.drawImage(image, 0, 0, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize);
+
+    if (options.healSeams) {
+      healTileSeams(canvas, options.threshold ?? 760);
+    }
+
+    return canvas;
+  } catch (error) {
+    console.warn("Tile preprocessing failed, using original image instead.", error);
+    return image;
   }
-  context.putImageData(imageData, 0, 0);
-  context.fillStyle = backgroundColor;
-  context.globalCompositeOperation = "destination-over";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.globalCompositeOperation = "source-over";
-  return canvas;
 }
 
-function sanitizeSparkleFrame(image) {
-  const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
+function healTileSeams(canvas, threshold = 760) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.drawImage(image, 0, 0);
+
+  if (!context) {
+    return;
+  }
+
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const pixels = imageData.data;
+  const nextPixels = new Uint8ClampedArray(pixels);
 
-  for (let index = 0; index < pixels.length; index += 4) {
-    const red = pixels[index];
-    const green = pixels[index + 1];
-    const blue = pixels[index + 2];
-    const brightness = red + green + blue;
+  // Only pure white seam pixels are repaired so the underlying tile art stays the same.
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      const index = (y * canvas.width + x) * 4;
+      const brightness = pixels[index] + pixels[index + 1] + pixels[index + 2];
 
-    if (brightness >= 720) {
-      pixels[index + 3] = 0;
-      continue;
-    }
+      if (brightness < threshold) {
+        continue;
+      }
 
-    if (brightness >= 620) {
-      pixels[index] = 255;
-      pixels[index + 1] = 235;
-      pixels[index + 2] = 120;
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let count = 0;
+
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          if (offsetX === 0 && offsetY === 0) {
+            continue;
+          }
+
+          const neighborX = x + offsetX;
+          const neighborY = y + offsetY;
+
+          if (neighborX < 0 || neighborX >= canvas.width || neighborY < 0 || neighborY >= canvas.height) {
+            continue;
+          }
+
+          const neighborIndex = (neighborY * canvas.width + neighborX) * 4;
+          const neighborBrightness = pixels[neighborIndex] + pixels[neighborIndex + 1] + pixels[neighborIndex + 2];
+
+          if (neighborBrightness >= threshold) {
+            continue;
+          }
+
+          red += pixels[neighborIndex];
+          green += pixels[neighborIndex + 1];
+          blue += pixels[neighborIndex + 2];
+          count += 1;
+        }
+      }
+
+      if (count > 0) {
+        nextPixels[index] = Math.round(red / count);
+        nextPixels[index + 1] = Math.round(green / count);
+        nextPixels[index + 2] = Math.round(blue / count);
+      }
     }
   }
 
+  imageData.data.set(nextPixels);
   context.putImageData(imageData, 0, 0);
-  return canvas;
 }
 
-function processOceanImage(image) {
-  const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.drawImage(image, 0, 0);
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const pixels = imageData.data;
-
-  for (let index = 0; index < pixels.length; index += 4) {
-    const pixelIndex = index / 4;
-    const x = pixelIndex % canvas.width;
-    const y = Math.floor(pixelIndex / canvas.width);
-    const red = pixels[index];
-    const green = pixels[index + 1];
-    const blue = pixels[index + 2];
-
-    const isReflectionBand = x > canvas.width * 0.42 && x < canvas.width * 0.6 && y > canvas.height * 0.38 && y < canvas.height * 0.7;
-    const isPurple = blue > red + 15 && red > green + 10;
-
-    if (isReflectionBand && isPurple) {
-      pixels[index] = 160;
-      pixels[index + 1] = 190;
-      pixels[index + 2] = 232;
+function createSparkleFrames() {
+  const frames = [
+    {
+      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]],
+      rays: [[0, -3], [0, -2], [0, 2], [0, 3], [-3, 0], [-2, 0], [2, 0], [3, 0]],
+      twinkles: [[-2, -2], [2, -2], [-2, 2], [2, 2]]
+    },
+    {
+      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]],
+      rays: [[0, -4], [0, -3], [0, 3], [0, 4], [-4, 0], [-3, 0], [3, 0], [4, 0]],
+      twinkles: [[-3, -2], [3, -2], [-3, 2], [3, 2]]
+    },
+    {
+      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]],
+      rays: [[-2, -3], [-1, -2], [1, -2], [2, -3], [-2, 3], [-1, 2], [1, 2], [2, 3], [-3, -2], [-2, -1], [2, -1], [3, -2], [-3, 2], [-2, 1], [2, 1], [3, 2]],
+      twinkles: [[0, -4], [0, 4], [-4, 0], [4, 0]]
+    },
+    {
+      core: [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]],
+      rays: [[-2, -2], [-1, -1], [1, -1], [2, -2], [-2, 2], [-1, 1], [1, 1], [2, 2]],
+      twinkles: [[0, -3], [0, 3], [-3, 0], [3, 0]]
     }
-  }
+  ];
 
-  context.putImageData(imageData, 0, 0);
-  return canvas;
+  return frames.map((frame) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 16;
+    canvas.height = 16;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return canvas;
+    }
+
+    context.imageSmoothingEnabled = false;
+
+    const drawPoints = (points, color) => {
+      context.fillStyle = color;
+      for (const [x, y] of points) {
+        context.fillRect(8 + x, 8 + y, 1, 1);
+      }
+    };
+
+    // These frames keep the sparkle warm and soft so it blends with the grass palette.
+    drawPoints(frame.twinkles, "#d8f36d");
+    drawPoints(frame.rays, "#f4ce52");
+    drawPoints(frame.core, "#fff4b8");
+    return canvas;
+  });
 }
 
 async function loadAssets() {
-  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, oceanImage, sparkleFrames] = await Promise.all([
+  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, oceanImage] = await Promise.all([
     loadImage(GAME_CONFIG.assets.grass),
     loadImage(GAME_CONFIG.assets.stone),
     loadImage(GAME_CONFIG.assets.cliff),
@@ -450,20 +493,19 @@ async function loadAssets() {
     loadImage(GAME_CONFIG.assets.bush),
     loadImage(GAME_CONFIG.assets.rock),
     loadImage(GAME_CONFIG.assets.bench),
-    loadImage(GAME_CONFIG.assets.ocean),
-    Promise.all(GAME_CONFIG.assets.sparkles.map((src) => loadImage(src)))
+    loadImage(GAME_CONFIG.assets.ocean)
   ]);
 
   return {
-    grass: createTileCanvas(grassImage, "#94d14e", 3, 744),
-    stone: createTileCanvas(stoneImage, "#d8d1c2", 3, 748),
-    cliff: createTileCanvas(cliffImage, "#766a59", 3, 748),
+    grass: createTileCanvas(grassImage, { healSeams: true, threshold: 760 }),
+    stone: createTileCanvas(stoneImage, { healSeams: true, threshold: 745 }),
+    cliff: createTileCanvas(cliffImage),
     tree: trimSprite(treeImage, 96),
     bush: trimSprite(bushImage, 96),
     rock: trimSprite(rockImage, 96),
     bench: trimSprite(benchImage, 96),
-    ocean: processOceanImage(oceanImage),
-    sparkleFrames: sparkleFrames.map((frame) => sanitizeSparkleFrame(frame))
+    ocean: oceanImage,
+    sparkleFrames: createSparkleFrames()
   };
 }
 
@@ -523,50 +565,55 @@ function drawPixelLine(context, x, y, width, height, color) {
   drawPixelRect(context, x, y, width, height, color);
 }
 
-function drawTreeSprite(screenX, screenY) {
-  // A custom tree avoids the cutoff and fringe issues from the sampled sprite sheet.
-  drawPixelRect(gameContext, screenX + 18, screenY + 28, 8, 8, "#6b4324");
-  drawPixelRect(gameContext, screenX + 16, screenY + 20, 12, 10, "#1d5a39");
-  drawPixelRect(gameContext, screenX + 12, screenY + 14, 20, 10, "#237347");
-  drawPixelRect(gameContext, screenX + 10, screenY + 9, 24, 9, "#2d8b55");
-  drawPixelRect(gameContext, screenX + 8, screenY + 4, 28, 8, "#37a365");
-  drawPixelRect(gameContext, screenX + 18, screenY + 0, 8, 6, "#5bc978");
-  drawPixelRect(gameContext, screenX + 13, screenY + 6, 18, 4, "#50bb70");
-  drawPixelRect(gameContext, screenX + 15, screenY + 16, 4, 4, "#89e59c");
-  drawPixelRect(gameContext, screenX + 24, screenY + 11, 4, 4, "#7fdc93");
+function drawStyledBush(screenX, screenY) {
+  // The bush uses the same yellow-green ramp as the grass so it feels painted into the same world.
+  drawPixelRect(gameContext, screenX + 6, screenY + 19, 20, 7, "#487c33");
+  drawPixelRect(gameContext, screenX + 4, screenY + 15, 24, 7, "#5c9638");
+  drawPixelRect(gameContext, screenX + 2, screenY + 11, 28, 7, "#74b63f");
+  drawPixelRect(gameContext, screenX + 4, screenY + 7, 24, 6, "#98d14f");
+  drawPixelRect(gameContext, screenX + 8, screenY + 4, 16, 4, "#b8e565");
+  drawPixelRect(gameContext, screenX + 9, screenY + 9, 4, 2, "#dff08b");
+  drawPixelRect(gameContext, screenX + 18, screenY + 10, 3, 2, "#dff08b");
 }
 
-function drawBushSprite(screenX, screenY) {
-  drawPixelRect(gameContext, screenX + 4, screenY + 10, 24, 8, "#2b7a4a");
-  drawPixelRect(gameContext, screenX + 2, screenY + 6, 28, 8, "#35915a");
-  drawPixelRect(gameContext, screenX + 4, screenY + 2, 24, 8, "#48ad6a");
-  drawPixelRect(gameContext, screenX + 8, screenY, 16, 6, "#74d98a");
-  drawPixelRect(gameContext, screenX + 10, screenY + 5, 4, 3, "#a7efb4");
-  drawPixelRect(gameContext, screenX + 20, screenY + 4, 4, 3, "#98e8a9");
+function drawStyledTree(screenX, screenY) {
+  drawPixelRect(gameContext, screenX + 16, screenY + 30, 8, 7, "#6d4324");
+  drawPixelRect(gameContext, screenX + 11, screenY + 24, 18, 8, "#255f35");
+  drawPixelRect(gameContext, screenX + 8, screenY + 18, 24, 8, "#2f7a40");
+  drawPixelRect(gameContext, screenX + 6, screenY + 13, 28, 8, "#469a4e");
+  drawPixelRect(gameContext, screenX + 9, screenY + 8, 22, 8, "#69b651");
+  drawPixelRect(gameContext, screenX + 13, screenY + 4, 14, 6, "#9bda65");
+  drawPixelRect(gameContext, screenX + 14, screenY + 12, 4, 2, "#ddf197");
+  drawPixelRect(gameContext, screenX + 24, screenY + 16, 4, 2, "#d1ea87");
 }
 
-function drawFenceSprite(screenX, screenY, isVertical) {
+function drawFence(screenX, screenY, isVertical) {
   if (isVertical) {
-    drawPixelRect(gameContext, screenX + 17, screenY + 4, 4, 40, "#54311d");
-    drawPixelRect(gameContext, screenX + 27, screenY + 4, 4, 40, "#54311d");
-    drawPixelRect(gameContext, screenX + 14, screenY + 10, 20, 6, "#b9793d");
-    drawPixelRect(gameContext, screenX + 14, screenY + 18, 20, 6, "#cf8d4a");
-    drawPixelRect(gameContext, screenX + 14, screenY + 26, 20, 6, "#b9793d");
+    drawPixelRect(gameContext, screenX + 18, screenY + 5, 4, 38, "#5a351d");
+    drawPixelRect(gameContext, screenX + 26, screenY + 5, 4, 38, "#5a351d");
+    drawPixelRect(gameContext, screenX + 14, screenY + 10, 20, 6, "#cc8f49");
+    drawPixelRect(gameContext, screenX + 14, screenY + 18, 20, 6, "#efbc6c");
+    drawPixelRect(gameContext, screenX + 14, screenY + 26, 20, 6, "#cc8f49");
+    drawPixelRect(gameContext, screenX + 16, screenY + 12, 16, 2, "#f8d992");
   } else {
-    drawPixelRect(gameContext, screenX + 4, screenY + 17, 40, 4, "#54311d");
-    drawPixelRect(gameContext, screenX + 4, screenY + 27, 40, 4, "#54311d");
-    drawPixelRect(gameContext, screenX + 10, screenY + 14, 6, 20, "#b9793d");
-    drawPixelRect(gameContext, screenX + 18, screenY + 14, 6, 20, "#cf8d4a");
-    drawPixelRect(gameContext, screenX + 26, screenY + 14, 6, 20, "#b9793d");
+    drawPixelRect(gameContext, screenX + 5, screenY + 18, 38, 4, "#5a351d");
+    drawPixelRect(gameContext, screenX + 5, screenY + 26, 38, 4, "#5a351d");
+    drawPixelRect(gameContext, screenX + 11, screenY + 14, 6, 20, "#cc8f49");
+    drawPixelRect(gameContext, screenX + 19, screenY + 14, 6, 20, "#efbc6c");
+    drawPixelRect(gameContext, screenX + 27, screenY + 14, 6, 20, "#cc8f49");
+    drawPixelRect(gameContext, screenX + 13, screenY + 16, 18, 2, "#f8d992");
   }
 }
 
-function drawOceanBenchSprite(screenX, screenY) {
-  drawPixelRect(gameContext, screenX + 9, screenY + 10, 30, 4, "#3e2d1f");
-  drawPixelRect(gameContext, screenX + 11, screenY + 14, 26, 8, "#956337");
-  drawPixelRect(gameContext, screenX + 12, screenY + 22, 24, 4, "#c08a53");
-  drawPixelRect(gameContext, screenX + 14, screenY + 26, 4, 10, "#3e2d1f");
-  drawPixelRect(gameContext, screenX + 30, screenY + 26, 4, 10, "#3e2d1f");
+function drawOceanBench(screenX, screenY) {
+  drawPixelRect(gameContext, screenX + 9, screenY + 8, 30, 4, "#4d3527");
+  drawPixelRect(gameContext, screenX + 10, screenY + 12, 28, 10, "#9c6938");
+  drawPixelRect(gameContext, screenX + 14, screenY + 14, 2, 8, "#d29a56");
+  drawPixelRect(gameContext, screenX + 20, screenY + 14, 2, 8, "#d29a56");
+  drawPixelRect(gameContext, screenX + 26, screenY + 14, 2, 8, "#d29a56");
+  drawPixelRect(gameContext, screenX + 32, screenY + 14, 2, 8, "#d29a56");
+  drawPixelRect(gameContext, screenX + 12, screenY + 24, 4, 10, "#4d3527");
+  drawPixelRect(gameContext, screenX + 32, screenY + 24, 4, 10, "#4d3527");
 }
 
 function drawTextureTile(image, screenX, screenY, tileX, tileY) {
@@ -579,43 +626,40 @@ function drawGrassTile(screenX, screenY, tileX, tileY) {
 
 function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {
   drawGrassTile(screenX, screenY, tileX, tileY);
-  const centerX = screenX + 12;
-  const centerY = screenY + 12;
+  const centerX = screenX + 24;
+  const centerY = screenY + 24;
 
-  // The route is drawn as one connected trail, so it reads like a path instead of tile stamps.
-  drawPixelRect(gameContext, centerX, centerY, 24, 24, "#caa56d");
-  drawPixelRect(gameContext, centerX + 2, centerY + 2, 20, 20, "#ddb885");
+  const paintSegment = (x, y, width, height) => {
+    drawPixelRect(gameContext, x, y, width, height, "#b98552");
+    drawPixelRect(gameContext, x + 2, y + 2, width - 4, height - 4, "#d7b07b");
+  };
+
+  // The path keeps the same route shape but now uses softer edges so it belongs with the field tiles.
+  paintSegment(centerX - 11, centerY - 11, 22, 22);
+  drawPixelRect(gameContext, centerX - 8, centerY - 8, 16, 2, "#ecd3a7");
+  drawPixelRect(gameContext, centerX - 4, centerY + 2, 3, 2, "#9d6d3f");
+  drawPixelRect(gameContext, centerX + 4, centerY - 1, 2, 2, "#9d6d3f");
 
   if (neighbors.up) {
-    drawPixelRect(gameContext, centerX, screenY, 24, 14, "#caa56d");
-    drawPixelRect(gameContext, centerX + 2, screenY, 20, 12, "#ddb885");
+    paintSegment(centerX - 11, screenY, 22, 17);
   }
   if (neighbors.down) {
-    drawPixelRect(gameContext, centerX, screenY + 34, 24, 14, "#caa56d");
-    drawPixelRect(gameContext, centerX + 2, screenY + 36, 20, 12, "#ddb885");
+    paintSegment(centerX - 11, screenY + 31, 22, 17);
   }
   if (neighbors.left) {
-    drawPixelRect(gameContext, screenX, centerY, 14, 24, "#caa56d");
-    drawPixelRect(gameContext, screenX, centerY + 2, 12, 20, "#ddb885");
+    paintSegment(screenX, centerY - 11, 17, 22);
   }
   if (neighbors.right) {
-    drawPixelRect(gameContext, screenX + 34, centerY, 14, 24, "#caa56d");
-    drawPixelRect(gameContext, screenX + 36, centerY + 2, 12, 20, "#ddb885");
+    paintSegment(screenX + 31, centerY - 11, 17, 22);
   }
 
-  drawPixelRect(gameContext, screenX + 18, screenY + 16, 3, 3, "#b98953");
-  drawPixelRect(gameContext, screenX + 27, screenY + 25, 3, 2, "#b98953");
-  drawPixelRect(gameContext, screenX + 14, screenY + 31, 2, 2, "#efd2a1");
+  drawPixelRect(gameContext, screenX + 10, screenY + 7, 6, 2, "#7faa47");
+  drawPixelRect(gameContext, screenX + 32, screenY + 39, 5, 2, "#7faa47");
 }
 
 function drawCliffTopTile(screenX, screenY, tileX, tileY) {
   drawTextureTile(state.assets.stone, screenX, screenY, tileX, tileY);
   drawPixelRect(gameContext, screenX, screenY, 48, 5, "rgba(255,255,255,0.12)");
-  if (!PATH_TILES.has(positionKey(tileX, tileY))) {
-    drawPixelRect(gameContext, screenX, screenY + 39, 48, 9, "#7a6e5d");
-    drawPixelRect(gameContext, screenX + 6, screenY + 35, 8, 6, "#94c756");
-    drawPixelRect(gameContext, screenX + 30, screenY + 35, 10, 6, "#84b948");
-  }
 }
 
 function drawCliffWallTile(screenX, screenY, tileX, tileY) {
@@ -627,7 +671,7 @@ function drawOverlookTile(screenX, screenY, tileX, tileY) {
 }
 
 function drawBench(screenX, screenY) {
-  drawOceanBenchSprite(screenX, screenY);
+  drawOceanBench(screenX, screenY);
 }
 
 function shouldShowOceanBackdrop() {
@@ -648,6 +692,16 @@ function drawOceanBackdrop() {
     drawPixelRect(gameContext, x, y, 2, 2, "#c7d8ff");
     drawPixelRect(gameContext, x + 2, y + 2, 2, 2, "#8aa9ff");
   }
+
+  // These overlays pull the stray moon-colored horizon band back into the night sky and brighten the reflection below.
+  drawPixelRect(gameContext, 0, 145, 200, 13, "#2e2a67");
+  drawPixelRect(gameContext, 280, 145, 200, 13, "#2e2a67");
+  drawPixelRect(gameContext, 0, 270, 195, 11, "#362173");
+  drawPixelRect(gameContext, 285, 270, 195, 11, "#362173");
+  drawPixelRect(gameContext, 226, 302, 28, 4, "#b3c5ef");
+  drawPixelRect(gameContext, 230, 316, 20, 3, "#9ab6eb");
+  drawPixelRect(gameContext, 233, 329, 14, 3, "#89aae6");
+  drawPixelRect(gameContext, 235, 342, 10, 2, "#789fe0");
 }
 
 function getPathNeighbors(x, y) {
@@ -693,9 +747,9 @@ function drawPlayer() {
 
 function drawStopSparkle(stop, cameraX, cameraY) {
   const frame = state.assets.sparkleFrames[state.sparkleFrame % state.assets.sparkleFrames.length];
-  const x = stop.x * GAME_CONFIG.tileSize + cameraX - 6;
-  const y = stop.y * GAME_CONFIG.tileSize + cameraY - 12;
-  gameContext.drawImage(frame, x, y, 60, 60);
+  const x = stop.x * GAME_CONFIG.tileSize + cameraX + 9;
+  const y = stop.y * GAME_CONFIG.tileSize + cameraY + 7;
+  gameContext.drawImage(frame, x, y, 30, 30);
 }
 
 function drawMemoryMarker(stop, cameraX, cameraY) {
@@ -716,7 +770,7 @@ function drawGate(tileX, tileY, cameraX, cameraY) {
   const isVerticalPath = (neighbors.up || neighbors.down) && !neighbors.left && !neighbors.right;
   const x = tileX * GAME_CONFIG.tileSize + cameraX;
   const y = tileY * GAME_CONFIG.tileSize + cameraY;
-  drawFenceSprite(x, y, isVerticalPath);
+  drawFence(x, y, isVerticalPath);
 }
 
 function drawTile(tileX, tileY, cameraX, cameraY) {
@@ -751,7 +805,7 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
   const tileKey = positionKey(tileX, tileY);
 
   if (bushSet.has(tileKey)) {
-    drawBushSprite(screenX + 7, screenY + 18);
+    drawStyledBush(screenX, screenY);
   }
 
   if (rockSet.has(tileKey)) {
@@ -763,7 +817,7 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
   }
 
   if (treeSet.has(tileKey)) {
-    drawTreeSprite(screenX + 6, screenY + 4);
+    drawStyledTree(screenX, screenY);
   }
 }
 

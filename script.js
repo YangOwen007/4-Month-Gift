@@ -879,11 +879,14 @@ function drawPlayer() {
 
 function drawStopSparkle(stop, cameraX, cameraY) {
   const frame = state.assets.sparkleFrames[state.sparkleFrame % state.assets.sparkleFrames.length];
-  const x = stop.x * GAME_CONFIG.tileSize + cameraX + 6;
-  const y = stop.y * GAME_CONFIG.tileSize + cameraY + 4;
+  const sparkleSize = 90;
+  const tileLeft = stop.x * GAME_CONFIG.tileSize + cameraX;
+  const tileTop = stop.y * GAME_CONFIG.tileSize + cameraY;
+  const x = tileLeft + (GAME_CONFIG.tileSize - sparkleSize) / 2;
+  const y = tileTop + (GAME_CONFIG.tileSize - sparkleSize) / 2;
 
-  // The 45px draw size is a clean 1.5x bump from the old 30px sparkle while still fitting inside a single tile.
-  gameContext.drawImage(frame, x, y, 45, 45);
+  // Centering from the tile bounds keeps the sparkle locked to the grid even at larger showcase sizes.
+  gameContext.drawImage(frame, x, y, sparkleSize, sparkleSize);
 }
 
 function drawMemoryMarker(stop, cameraX, cameraY) {

@@ -585,31 +585,41 @@ function blendTileBorders(canvas, threshold = 760) {
 function createSparkleFrames() {
   const frames = [
     {
-      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]],
-      rays: [[0, -3], [0, -2], [0, 2], [0, 3], [-3, 0], [-2, 0], [2, 0], [3, 0]],
-      twinkles: [[-2, -2], [2, -2], [-2, 2], [2, 2]]
+      halo: [[0, -8], [0, 8], [-8, 0], [8, 0], [-5, -5], [5, -5], [-5, 5], [5, 5]],
+      outer: [[0, -6], [0, -5], [0, 5], [0, 6], [-6, 0], [-5, 0], [5, 0], [6, 0], [-4, -4], [4, -4], [-4, 4], [4, 4]],
+      mid: [[0, -4], [0, -3], [0, 3], [0, 4], [-4, 0], [-3, 0], [3, 0], [4, 0], [-2, -2], [2, -2], [-2, 2], [2, 2]],
+      core: [[0, -1], [0, 0], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]
     },
     {
-      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]],
-      rays: [[0, -4], [0, -3], [0, 3], [0, 4], [-4, 0], [-3, 0], [3, 0], [4, 0]],
-      twinkles: [[-3, -2], [3, -2], [-3, 2], [3, 2]]
+      halo: [[0, -9], [0, 9], [-9, 0], [9, 0], [-7, -3], [7, -3], [-7, 3], [7, 3], [-3, -7], [3, -7], [-3, 7], [3, 7]],
+      outer: [[0, -7], [0, -6], [0, 6], [0, 7], [-7, 0], [-6, 0], [6, 0], [7, 0], [-5, -2], [5, -2], [-5, 2], [5, 2], [-2, -5], [2, -5], [-2, 5], [2, 5]],
+      mid: [[-4, -4], [-3, -3], [3, -3], [4, -4], [-4, 4], [-3, 3], [3, 3], [4, 4], [0, -4], [0, 4], [-4, 0], [4, 0], [-2, -2], [2, -2], [-2, 2], [2, 2]],
+      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]
     },
     {
-      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]],
-      rays: [[-2, -3], [-1, -2], [1, -2], [2, -3], [-2, 3], [-1, 2], [1, 2], [2, 3], [-3, -2], [-2, -1], [2, -1], [3, -2], [-3, 2], [-2, 1], [2, 1], [3, 2]],
-      twinkles: [[0, -4], [0, 4], [-4, 0], [4, 0]]
+      halo: [[-8, -1], [-8, 1], [8, -1], [8, 1], [-1, -8], [1, -8], [-1, 8], [1, 8], [-6, -6], [6, -6], [-6, 6], [6, 6]],
+      outer: [[-6, -1], [-6, 1], [6, -1], [6, 1], [-1, -6], [1, -6], [-1, 6], [1, 6], [-5, -4], [5, -4], [-5, 4], [5, 4], [-4, -5], [4, -5], [-4, 5], [4, 5]],
+      mid: [[-4, -1], [-4, 1], [4, -1], [4, 1], [-1, -4], [1, -4], [-1, 4], [1, 4], [-3, -3], [3, -3], [-3, 3], [3, 3], [-2, 0], [2, 0], [0, -2], [0, 2]],
+      core: [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]
     },
     {
-      core: [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]],
-      rays: [[-2, -2], [-1, -1], [1, -1], [2, -2], [-2, 2], [-1, 1], [1, 1], [2, 2]],
-      twinkles: [[0, -3], [0, 3], [-3, 0], [3, 0]]
+      halo: [[0, -8], [0, 8], [-8, 0], [8, 0], [-6, -3], [6, -3], [-6, 3], [6, 3], [-3, -6], [3, -6], [-3, 6], [3, 6]],
+      outer: [[0, -6], [0, -5], [0, 5], [0, 6], [-6, 0], [-5, 0], [5, 0], [6, 0], [-4, -3], [4, -3], [-4, 3], [4, 3], [-3, -4], [3, -4], [-3, 4], [3, 4]],
+      mid: [[-3, -1], [3, -1], [-3, 1], [3, 1], [-1, -3], [1, -3], [-1, 3], [1, 3], [-2, -2], [2, -2], [-2, 2], [2, 2]],
+      core: [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]
+    },
+    {
+      halo: [[-7, 0], [7, 0], [0, -7], [0, 7], [-5, -5], [5, -5], [-5, 5], [5, 5]],
+      outer: [[-5, 0], [5, 0], [0, -5], [0, 5], [-4, -4], [4, -4], [-4, 4], [4, 4], [-2, -6], [2, -6], [-2, 6], [2, 6], [-6, -2], [6, -2], [-6, 2], [6, 2]],
+      mid: [[-3, 0], [3, 0], [0, -3], [0, 3], [-2, -2], [2, -2], [-2, 2], [2, 2], [-1, -4], [1, -4], [-1, 4], [1, 4], [-4, -1], [4, -1], [-4, 1], [4, 1]],
+      core: [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]
     }
   ];
 
   return frames.map((frame) => {
     const canvas = document.createElement("canvas");
-    canvas.width = 16;
-    canvas.height = 16;
+    canvas.width = 24;
+    canvas.height = 24;
     const context = canvas.getContext("2d");
 
     if (!context) {
@@ -621,14 +631,15 @@ function createSparkleFrames() {
     const drawPoints = (points, color) => {
       context.fillStyle = color;
       for (const [x, y] of points) {
-        context.fillRect(8 + x, 8 + y, 1, 1);
+        context.fillRect(12 + x, 12 + y, 1, 1);
       }
     };
 
-    // These frames keep the sparkle warm and soft so it blends with the grass palette.
-    drawPoints(frame.twinkles, "#d8f36d");
-    drawPoints(frame.rays, "#f4ce52");
-    drawPoints(frame.core, "#fff4b8");
+    // These larger layers keep the sparkle crisp at the newer art scale without feeling disconnected from the meadow palette.
+    drawPoints(frame.halo, "#a7d64b");
+    drawPoints(frame.outer, "#f0b847");
+    drawPoints(frame.mid, "#ffe07d");
+    drawPoints(frame.core, "#fff6c9");
     return canvas;
   });
 }
@@ -868,9 +879,11 @@ function drawPlayer() {
 
 function drawStopSparkle(stop, cameraX, cameraY) {
   const frame = state.assets.sparkleFrames[state.sparkleFrame % state.assets.sparkleFrames.length];
-  const x = stop.x * GAME_CONFIG.tileSize + cameraX + 9;
-  const y = stop.y * GAME_CONFIG.tileSize + cameraY + 7;
-  gameContext.drawImage(frame, x, y, 30, 30);
+  const x = stop.x * GAME_CONFIG.tileSize + cameraX + 6;
+  const y = stop.y * GAME_CONFIG.tileSize + cameraY + 4;
+
+  // The 45px draw size is a clean 1.5x bump from the old 30px sparkle while still fitting inside a single tile.
+  gameContext.drawImage(frame, x, y, 45, 45);
 }
 
 function drawMemoryMarker(stop, cameraX, cameraY) {

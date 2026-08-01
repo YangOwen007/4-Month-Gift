@@ -50,10 +50,13 @@ const GAME_CONFIG = {
     grass: "assets/cohesive/grass.png",
     stone: "assets/cohesive/stone.png",
     cliff: "assets/cohesive/cliff.png",
-    tree: "assets/cohesive/tree.png",
-    bush: "assets/cohesive/bush.png",
+    tree: "assets/refined/tree.png",
+    bush: "assets/refined/bush.png",
     rock: "assets/cohesive/rock.png",
-    bench: "assets/cohesive/bench.png",
+    bench: "assets/refined/bench.png",
+    fenceHorizontal: "assets/refined/fence-horizontal.png",
+    fenceVertical: "assets/refined/fence-vertical.png",
+    path: "assets/refined/path-fill.png",
     ocean: "assets/ocean-night.png",
     sparkles: Array.from({ length: 12 }, (_, index) => `assets/sparkles/sparkle-${index}.png`),
     fireworks: Array.from({ length: 7 }, (_, index) => `assets/fireworks/firework-${index}.png`)
@@ -485,7 +488,7 @@ function createSparkleFrames() {
 }
 
 async function loadAssets() {
-  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, oceanImage] = await Promise.all([
+  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, fenceHorizontalImage, fenceVerticalImage, pathImage, oceanImage] = await Promise.all([
     loadImage(GAME_CONFIG.assets.grass),
     loadImage(GAME_CONFIG.assets.stone),
     loadImage(GAME_CONFIG.assets.cliff),
@@ -493,6 +496,9 @@ async function loadAssets() {
     loadImage(GAME_CONFIG.assets.bush),
     loadImage(GAME_CONFIG.assets.rock),
     loadImage(GAME_CONFIG.assets.bench),
+    loadImage(GAME_CONFIG.assets.fenceHorizontal),
+    loadImage(GAME_CONFIG.assets.fenceVertical),
+    loadImage(GAME_CONFIG.assets.path),
     loadImage(GAME_CONFIG.assets.ocean)
   ]);
 
@@ -504,6 +510,9 @@ async function loadAssets() {
     bush: trimSprite(bushImage, 96),
     rock: trimSprite(rockImage, 96),
     bench: trimSprite(benchImage, 96),
+    fenceHorizontal: trimSprite(fenceHorizontalImage, 96),
+    fenceVertical: trimSprite(fenceVerticalImage, 96),
+    path: createTileCanvas(pathImage),
     ocean: oceanImage,
     sparkleFrames: createSparkleFrames()
   };
@@ -566,54 +575,26 @@ function drawPixelLine(context, x, y, width, height, color) {
 }
 
 function drawStyledBush(screenX, screenY) {
-  // The bush uses the same yellow-green ramp as the grass so it feels painted into the same world.
-  drawPixelRect(gameContext, screenX + 6, screenY + 19, 20, 7, "#487c33");
-  drawPixelRect(gameContext, screenX + 4, screenY + 15, 24, 7, "#5c9638");
-  drawPixelRect(gameContext, screenX + 2, screenY + 11, 28, 7, "#74b63f");
-  drawPixelRect(gameContext, screenX + 4, screenY + 7, 24, 6, "#98d14f");
-  drawPixelRect(gameContext, screenX + 8, screenY + 4, 16, 4, "#b8e565");
-  drawPixelRect(gameContext, screenX + 9, screenY + 9, 4, 2, "#dff08b");
-  drawPixelRect(gameContext, screenX + 18, screenY + 10, 3, 2, "#dff08b");
+  // The generated bush stays compact so it decorates the lane without swallowing the grass tile.
+  gameContext.drawImage(state.assets.bush, screenX + 6, screenY + 18, 36, 32);
 }
 
 function drawStyledTree(screenX, screenY) {
-  drawPixelRect(gameContext, screenX + 16, screenY + 30, 8, 7, "#6d4324");
-  drawPixelRect(gameContext, screenX + 11, screenY + 24, 18, 8, "#255f35");
-  drawPixelRect(gameContext, screenX + 8, screenY + 18, 24, 8, "#2f7a40");
-  drawPixelRect(gameContext, screenX + 6, screenY + 13, 28, 8, "#469a4e");
-  drawPixelRect(gameContext, screenX + 9, screenY + 8, 22, 8, "#69b651");
-  drawPixelRect(gameContext, screenX + 13, screenY + 4, 14, 6, "#9bda65");
-  drawPixelRect(gameContext, screenX + 14, screenY + 12, 4, 2, "#ddf197");
-  drawPixelRect(gameContext, screenX + 24, screenY + 16, 4, 2, "#d1ea87");
+  // The new tree keeps more detail than the old blocky stand-in, but still fits inside one map tile.
+  gameContext.drawImage(state.assets.tree, screenX + 8, screenY + 2, 32, 42);
 }
 
 function drawFence(screenX, screenY, isVertical) {
   if (isVertical) {
-    drawPixelRect(gameContext, screenX + 18, screenY + 5, 4, 38, "#5a351d");
-    drawPixelRect(gameContext, screenX + 26, screenY + 5, 4, 38, "#5a351d");
-    drawPixelRect(gameContext, screenX + 14, screenY + 10, 20, 6, "#cc8f49");
-    drawPixelRect(gameContext, screenX + 14, screenY + 18, 20, 6, "#efbc6c");
-    drawPixelRect(gameContext, screenX + 14, screenY + 26, 20, 6, "#cc8f49");
-    drawPixelRect(gameContext, screenX + 16, screenY + 12, 16, 2, "#f8d992");
+    gameContext.drawImage(state.assets.fenceVertical, screenX + 11, screenY + 3, 26, 42);
   } else {
-    drawPixelRect(gameContext, screenX + 5, screenY + 18, 38, 4, "#5a351d");
-    drawPixelRect(gameContext, screenX + 5, screenY + 26, 38, 4, "#5a351d");
-    drawPixelRect(gameContext, screenX + 11, screenY + 14, 6, 20, "#cc8f49");
-    drawPixelRect(gameContext, screenX + 19, screenY + 14, 6, 20, "#efbc6c");
-    drawPixelRect(gameContext, screenX + 27, screenY + 14, 6, 20, "#cc8f49");
-    drawPixelRect(gameContext, screenX + 13, screenY + 16, 18, 2, "#f8d992");
+    gameContext.drawImage(state.assets.fenceHorizontal, screenX + 3, screenY + 12, 42, 24);
   }
 }
 
 function drawOceanBench(screenX, screenY) {
-  drawPixelRect(gameContext, screenX + 9, screenY + 8, 30, 4, "#4d3527");
-  drawPixelRect(gameContext, screenX + 10, screenY + 12, 28, 10, "#9c6938");
-  drawPixelRect(gameContext, screenX + 14, screenY + 14, 2, 8, "#d29a56");
-  drawPixelRect(gameContext, screenX + 20, screenY + 14, 2, 8, "#d29a56");
-  drawPixelRect(gameContext, screenX + 26, screenY + 14, 2, 8, "#d29a56");
-  drawPixelRect(gameContext, screenX + 32, screenY + 14, 2, 8, "#d29a56");
-  drawPixelRect(gameContext, screenX + 12, screenY + 24, 4, 10, "#4d3527");
-  drawPixelRect(gameContext, screenX + 32, screenY + 24, 4, 10, "#4d3527");
+  // This bench is viewed from behind so it reads like it is facing the ocean overlook.
+  gameContext.drawImage(state.assets.bench, screenX + 6, screenY + 10, 36, 20);
 }
 
 function drawTextureTile(image, screenX, screenY, tileX, tileY) {
@@ -628,17 +609,22 @@ function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {
   drawGrassTile(screenX, screenY, tileX, tileY);
   const centerX = screenX + 24;
   const centerY = screenY + 24;
+  const pathPattern = state.assets.pathPattern ??= gameContext.createPattern(state.assets.path, "repeat");
 
   const paintSegment = (x, y, width, height) => {
-    drawPixelRect(gameContext, x, y, width, height, "#b98552");
-    drawPixelRect(gameContext, x + 2, y + 2, width - 4, height - 4, "#d7b07b");
+    // The repeated dirt texture keeps the hand-painted feel while the rectangle masks preserve the route logic.
+    gameContext.save();
+    gameContext.translate(screenX, screenY);
+    gameContext.fillStyle = pathPattern;
+    gameContext.fillRect(x - screenX, y - screenY, width, height);
+    gameContext.restore();
   };
 
-  // The path keeps the same route shape but now uses softer edges so it belongs with the field tiles.
+  // The path keeps the same route shape but now uses the new textured dirt instead of flat blocks.
   paintSegment(centerX - 11, centerY - 11, 22, 22);
-  drawPixelRect(gameContext, centerX - 8, centerY - 8, 16, 2, "#ecd3a7");
-  drawPixelRect(gameContext, centerX - 4, centerY + 2, 3, 2, "#9d6d3f");
-  drawPixelRect(gameContext, centerX + 4, centerY - 1, 2, 2, "#9d6d3f");
+  drawPixelRect(gameContext, centerX - 8, centerY - 8, 16, 2, "#edd8b0");
+  drawPixelRect(gameContext, centerX - 4, centerY + 2, 3, 2, "#a97848");
+  drawPixelRect(gameContext, centerX + 4, centerY - 1, 2, 2, "#a97848");
 
   if (neighbors.up) {
     paintSegment(centerX - 11, screenY, 22, 17);
@@ -653,6 +639,7 @@ function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {
     paintSegment(screenX + 31, centerY - 11, 17, 22);
   }
 
+  // A couple of grass nicks stop the path from feeling stamped on top of the meadow.
   drawPixelRect(gameContext, screenX + 10, screenY + 7, 6, 2, "#7faa47");
   drawPixelRect(gameContext, screenX + 32, screenY + 39, 5, 2, "#7faa47");
 }

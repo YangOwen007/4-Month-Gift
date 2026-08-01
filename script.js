@@ -650,11 +650,21 @@ function drawGrassTile(screenX, screenY, tileX, tileY) {
   drawPixelRect(gameContext, screenX, screenY, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize, LAND_BASE_COLOR);
   drawTextureTile(state.assets.grass, screenX, screenY, tileX, tileY);
 
-  // The source grass still leaves a couple of bright seam ticks at tile joins, so we softly cap each corner.
-  drawPixelRect(gameContext, screenX, screenY, 2, 2, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - 2, screenY, 2, 2, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX, screenY + GAME_CONFIG.tileSize - 2, 2, 2, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - 2, screenY + GAME_CONFIG.tileSize - 2, 2, 2, LAND_BASE_COLOR);
+  // The grass seams only misbehave right around the corners, so small L-shaped caps clean them up without flattening the tile.
+  const cornerArm = 5;
+  const cornerDepth = 3;
+
+  drawPixelRect(gameContext, screenX, screenY, cornerArm, cornerDepth, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX, screenY, cornerDepth, cornerArm, LAND_BASE_COLOR);
+
+  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerArm, screenY, cornerArm, cornerDepth, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerDepth, screenY, cornerDepth, cornerArm, LAND_BASE_COLOR);
+
+  drawPixelRect(gameContext, screenX, screenY + GAME_CONFIG.tileSize - cornerDepth, cornerArm, cornerDepth, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX, screenY + GAME_CONFIG.tileSize - cornerArm, cornerDepth, cornerArm, LAND_BASE_COLOR);
+
+  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerArm, screenY + GAME_CONFIG.tileSize - cornerDepth, cornerArm, cornerDepth, LAND_BASE_COLOR);
+  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerDepth, screenY + GAME_CONFIG.tileSize - cornerArm, cornerDepth, cornerArm, LAND_BASE_COLOR);
 }
 
 function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {

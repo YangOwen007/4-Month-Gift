@@ -47,7 +47,7 @@ const GAME_CONFIG = {
     }
   ],
   assets: {
-    grass: "assets/cohesive/grass.png",
+    grass: "assets/cohesive/grass-clean.png",
     stone: "assets/cohesive/stone.png",
     cliff: "assets/cohesive/cliff.png",
     tree: "assets/refined/tree.png",
@@ -571,7 +571,7 @@ async function loadAssets() {
   ]);
 
   return {
-    grass: createTileCanvas(grassImage, { healSeams: true, threshold: 760 }),
+    grass: createTileCanvas(grassImage),
     stone: createTileCanvas(stoneImage, { healSeams: true, threshold: 745 }),
     cliff: createTileCanvas(cliffImage),
     tree: trimSprite(treeImage, 96),
@@ -673,22 +673,6 @@ function drawGrassTile(screenX, screenY, tileX, tileY) {
   // A flat meadow underlay hides tiny transparent corner gaps without changing the grass art itself.
   drawPixelRect(gameContext, screenX, screenY, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize, LAND_BASE_COLOR);
   drawTextureTile(state.assets.grass, screenX, screenY, tileX, tileY);
-
-  // The grass seams only misbehave right around the corners, so small L-shaped caps clean them up without flattening the tile.
-  const cornerArm = 5;
-  const cornerDepth = 3;
-
-  drawPixelRect(gameContext, screenX, screenY, cornerArm, cornerDepth, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX, screenY, cornerDepth, cornerArm, LAND_BASE_COLOR);
-
-  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerArm, screenY, cornerArm, cornerDepth, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerDepth, screenY, cornerDepth, cornerArm, LAND_BASE_COLOR);
-
-  drawPixelRect(gameContext, screenX, screenY + GAME_CONFIG.tileSize - cornerDepth, cornerArm, cornerDepth, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX, screenY + GAME_CONFIG.tileSize - cornerArm, cornerDepth, cornerArm, LAND_BASE_COLOR);
-
-  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerArm, screenY + GAME_CONFIG.tileSize - cornerDepth, cornerArm, cornerDepth, LAND_BASE_COLOR);
-  drawPixelRect(gameContext, screenX + GAME_CONFIG.tileSize - cornerDepth, screenY + GAME_CONFIG.tileSize - cornerArm, cornerDepth, cornerArm, LAND_BASE_COLOR);
 }
 
 function drawPathTile(screenX, screenY, tileX, tileY, neighbors) {

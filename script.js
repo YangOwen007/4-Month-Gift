@@ -57,7 +57,7 @@ const GAME_CONFIG = {
     fenceHorizontal: "assets/refined/fence-horizontal.png",
     fenceVertical: "assets/refined/fence-vertical.png",
     path: "assets/refined/path-fill.png",
-    ocean: "assets/ocean-night.png",
+    ocean: "assets/ocean-clean.png",
     sparkles: Array.from({ length: 12 }, (_, index) => `assets/sparkles/sparkle-${index}.png`),
     fireworks: Array.from({ length: 7 }, (_, index) => `assets/fireworks/firework-${index}.png`)
   }
@@ -750,15 +750,31 @@ function drawOceanBackdrop() {
     drawPixelRect(gameContext, x + 2, y + 2, 2, 2, "#8aa9ff");
   }
 
-  // These overlays pull the stray moon-colored horizon band back into the night sky and brighten the reflection below.
-  drawPixelRect(gameContext, 0, 145, 200, 13, "#2e2a67");
-  drawPixelRect(gameContext, 280, 145, 200, 13, "#2e2a67");
-  drawPixelRect(gameContext, 0, 270, 195, 11, "#362173");
-  drawPixelRect(gameContext, 285, 270, 195, 11, "#362173");
-  drawPixelRect(gameContext, 226, 302, 28, 4, "#b3c5ef");
-  drawPixelRect(gameContext, 230, 316, 20, 3, "#9ab6eb");
-  drawPixelRect(gameContext, 233, 329, 14, 3, "#89aae6");
-  drawPixelRect(gameContext, 235, 342, 10, 2, "#789fe0");
+  // A narrow moon reflection looks cleaner than the old wide horizon bars and stays aligned with the moon itself.
+  const reflectionMasks = [
+    [222, 223, 36, 4, "#241c5d"],
+    [225, 237, 30, 4, "#241c5d"],
+    [229, 251, 22, 4, "#1b337a"],
+    [232, 265, 16, 4, "#1b337a"],
+    [234, 279, 12, 4, "#123b8f"],
+    [236, 293, 8, 4, "#123b8f"]
+  ];
+
+  for (const [x, y, width, height, color] of reflectionMasks) {
+    drawPixelRect(gameContext, x, y, width, height, color);
+  }
+
+  const reflectionHighlights = [
+    [226, 223, 28, 3, "#c8daf8"],
+    [229, 237, 22, 3, "#b6cdf4"],
+    [232, 251, 16, 3, "#a5c0ef"],
+    [235, 265, 10, 3, "#93b2ea"],
+    [237, 279, 6, 3, "#86a6e4"]
+  ];
+
+  for (const [x, y, width, height, color] of reflectionHighlights) {
+    drawPixelRect(gameContext, x, y, width, height, color);
+  }
 }
 
 function getPathNeighbors(x, y) {

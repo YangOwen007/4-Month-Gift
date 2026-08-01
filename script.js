@@ -63,6 +63,13 @@ const GAME_CONFIG = {
   }
 };
 
+const PLAYER_FRAME_PATHS = {
+  down: ["assets/player-cat/down-0.png", "assets/player-cat/down-1.png"],
+  left: ["assets/player-cat/left-0.png", "assets/player-cat/left-1.png"],
+  up: ["assets/player-cat/up-0.png", "assets/player-cat/up-1.png"],
+  right: ["assets/player-cat/right-0.png", "assets/player-cat/right-1.png"]
+};
+
 // Terrain legend:
 // g grass, o ocean void, c cliff top, a overlook platform.
 const RAW_TERRAIN_ROWS = Array.from({ length: GAME_CONFIG.mapHeight }, (_, y) => {
@@ -556,7 +563,7 @@ function createSparkleFrames() {
 }
 
 async function loadAssets() {
-  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, fenceHorizontalImage, fenceVerticalImage, pathImage, oceanImage] = await Promise.all([
+  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, fenceHorizontalImage, fenceVerticalImage, pathImage, oceanImage, ...playerFrameImages] = await Promise.all([
     loadImage(GAME_CONFIG.assets.grass),
     loadImage(GAME_CONFIG.assets.stone),
     loadImage(GAME_CONFIG.assets.cliff),
@@ -567,8 +574,16 @@ async function loadAssets() {
     loadImage(GAME_CONFIG.assets.fenceHorizontal),
     loadImage(GAME_CONFIG.assets.fenceVertical),
     loadImage(GAME_CONFIG.assets.path),
-    loadImage(GAME_CONFIG.assets.ocean)
+    loadImage(GAME_CONFIG.assets.ocean),
+    ...Object.values(PLAYER_FRAME_PATHS).flat().map((path) => loadImage(path))
   ]);
+
+  const playerFrames = {
+    down: playerFrameImages.slice(0, 2).map((image) => trimSprite(image, 8)),
+    left: playerFrameImages.slice(2, 4).map((image) => trimSprite(image, 8)),
+    up: playerFrameImages.slice(4, 6).map((image) => trimSprite(image, 8)),
+    right: playerFrameImages.slice(6, 8).map((image) => trimSprite(image, 8))
+  };
 
   return {
     grass: createTileCanvas(grassImage),
@@ -582,6 +597,7 @@ async function loadAssets() {
     fenceVertical: trimSprite(fenceVerticalImage, 96),
     path: createTileCanvas(pathImage),
     ocean: oceanImage,
+    playerFrames,
     sparkleFrames: createSparkleFrames()
   };
 }
@@ -766,30 +782,17 @@ function drawPlayer() {
     ? Math.round(lerp(0, GAME_CONFIG.tileSize * 5.5, state.endingCutscene.progress))
     : 0;
   const baseX = center - GAME_CONFIG.tileSize / 2;
-  const baseY = center - GAME_CONFIG.tileSize / 2 + cutsceneOffset + (state.stepPhase === 0 ? -1 : 1);
+  const baseY = center - GAME_CONFIG.tileSize / 2 + cutsceneOffset;
+  const frames = state.assets.playerFrames?.[state.facing] ?? state.assets.playerFrames?.down;
+  const frame = frames?.[state.stepPhase] ?? frames?.[0];
 
-  // The player gets a little more detail here so they belong better with the new map art.
-  drawPixelRect(gameContext, baseX + 11, baseY + 4, 26, 4, "#1f1c27");
-  drawPixelRect(gameContext, baseX + 8, baseY + 8, 32, 8, "#b53f48");
-  drawPixelRect(gameContext, baseX + 12, baseY + 9, 18, 3, "#fff7ef");
-  drawPixelRect(gameContext, baseX + 14, baseY + 16, 20, 9, "#f2ceb0");
-  drawPixelRect(gameContext, baseX + 10, baseY + 25, 28, 13, "#4066c7");
-  drawPixelRect(gameContext, baseX + 12, baseY + 26, 8, 5, "#e3efe8");
-  drawPixelRect(gameContext, baseX + 28, baseY + 26, 8, 5, "#e3efe8");
-  drawPixelRect(gameContext, baseX + 13, baseY + 38, 8, 9, "#2e2734");
-  drawPixelRect(gameContext, baseX + 27, baseY + 38, 8, 9, "#2e2734");
-  drawPixelRect(gameContext, baseX + 11, baseY + 26, 3, 8, "#f2ceb0");
-  drawPixelRect(gameContext, baseX + 34, baseY + 26, 3, 8, "#f2ceb0");
-
-  if (state.facing === "left") {
-    drawPixelRect(gameContext, baseX + 14, baseY + 19, 3, 3, "#2b1a16");
-  } else if (state.facing === "right") {
-    drawPixelRect(gameContext, baseX + 31, baseY + 19, 3, 3, "#2b1a16");
-  } else if (state.facing === "up") {
-    drawPixelRect(gameContext, baseX + 18, baseY + 14, 12, 2, "#2b1a16");
-  } else {
-    drawPixelRect(gameContext, baseX + 18, baseY + 21, 12, 2, "#2b1a16");
+  if (!frame) {
+    return;
   }
+
+  // The cat sprite stays centered in the tile while still getting a tiny step bounce from movement.
+  const bobOffset = state.stepPhase === 0 ? -1 : 1;
+  gameContext.drawImage(frame, baseX + 4, baseY + 3 + bobOffset, 40, 40);
 }
 
 function drawStopSparkle(stop, cameraX, cameraY) {

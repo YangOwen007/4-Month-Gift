@@ -130,6 +130,7 @@ const VIEWPORT_PIXELS = GAME_CONFIG.viewportTiles * GAME_CONFIG.tileSize;
 const BENCH_POSITION = GAME_CONFIG.bench;
 const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
+const LAND_BASE_COLOR = "#8fc84a";
 
 const gameCanvas = document.querySelector("#game-canvas");
 const gameContext = gameCanvas.getContext("2d");
@@ -602,6 +603,8 @@ function drawTextureTile(image, screenX, screenY, tileX, tileY) {
 }
 
 function drawGrassTile(screenX, screenY, tileX, tileY) {
+  // A flat meadow underlay hides tiny transparent corner gaps without changing the grass art itself.
+  drawPixelRect(gameContext, screenX, screenY, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize, LAND_BASE_COLOR);
   drawTextureTile(state.assets.grass, screenX, screenY, tileX, tileY);
 }
 

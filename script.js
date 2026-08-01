@@ -63,11 +63,25 @@ const GAME_CONFIG = {
   }
 };
 
+// Versioned sprite URLs keep GitHub Pages and the browser from reusing an older cached cat sheet.
+const PLAYER_FRAME_VERSION = "20260801-cat-clean-2";
 const PLAYER_FRAME_PATHS = {
-  down: ["assets/player-cat/down-0.png", "assets/player-cat/down-1.png"],
-  left: ["assets/player-cat/left-0.png", "assets/player-cat/left-1.png"],
-  up: ["assets/player-cat/up-0.png", "assets/player-cat/up-1.png"],
-  right: ["assets/player-cat/right-0.png", "assets/player-cat/right-1.png"]
+  down: [
+    `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,
+    `assets/player-cat/down-1.png?v=${PLAYER_FRAME_VERSION}`
+  ],
+  left: [
+    `assets/player-cat/left-0.png?v=${PLAYER_FRAME_VERSION}`,
+    `assets/player-cat/left-1.png?v=${PLAYER_FRAME_VERSION}`
+  ],
+  up: [
+    `assets/player-cat/up-0.png?v=${PLAYER_FRAME_VERSION}`,
+    `assets/player-cat/up-1.png?v=${PLAYER_FRAME_VERSION}`
+  ],
+  right: [
+    `assets/player-cat/right-0.png?v=${PLAYER_FRAME_VERSION}`,
+    `assets/player-cat/right-1.png?v=${PLAYER_FRAME_VERSION}`
+  ]
 };
 
 // Terrain legend:

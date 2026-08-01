@@ -57,7 +57,7 @@ const GAME_CONFIG = {
     fenceHorizontal: "assets/refined/fence-horizontal.png",
     fenceVertical: "assets/refined/fence-vertical.png",
     path: "assets/refined/path-fill.png",
-    ocean: "assets/ocean-clean.png",
+    ocean: "assets/ocean-generated.png",
     sparkles: Array.from({ length: 12 }, (_, index) => `assets/sparkles/sparkle-${index}.png`),
     fireworks: Array.from({ length: 7 }, (_, index) => `assets/fireworks/firework-${index}.png`)
   }

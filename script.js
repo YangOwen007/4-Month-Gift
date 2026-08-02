@@ -181,8 +181,9 @@ const BENCH_DRAW_SIZE = { width: 88, height: 36 };
 const STRAWBERRY_DRAW_SIZE = { width: 34, height: 36 };
 const SEATED_CAT_DRAW_SIZE = { width: 38, height: 38 };
 const SEATED_STRAWBERRY_DRAW_SIZE = { width: 30, height: 32 };
-// Seated characters share the same vertical nudge as the bench so the whole finale grouping stays aligned.
-const SEATED_ENDING_DRAW_OFFSET_Y = 32;
+// These sit offsets keep the swap from walking pose to seated pose at the same visual height on the bench.
+const SEATED_CAT_DRAW_OFFSET = { x: 0, y: 1 };
+const SEATED_STRAWBERRY_DRAW_OFFSET = { x: 0, y: -2 };
 const ENDING_WALK_DURATION = 2200;
 const ENDING_CAMERA_DURATION = 2600;
 const ENDING_TOTAL_DURATION = ENDING_WALK_DURATION + ENDING_CAMERA_DURATION;
@@ -238,7 +239,8 @@ const state = {
     progress: 0,
     fireworksStarted: false,
     heartFrame: 0,
-    heartTime: 0
+    heartTime: 0,
+    heartLoopTime: 0
   }
 };
 
@@ -1020,7 +1022,7 @@ function drawEndingHearts(cameraX, cameraY) {
 
   // Anchoring directly to the drawn bench keeps the hearts visible even after the camera finishes its upward move.
   for (const anchor of seatedHeartAnchors) {
-    const localTime = Math.max(0, state.endingCutscene.timeline - ENDING_WALK_DURATION + anchor.delay);
+    const localTime = Math.max(0, state.endingCutscene.heartLoopTime + anchor.delay);
     const cycle = (localTime % 1500) / 1500;
     const heartFrame = heartFrames[Math.floor(cycle * heartFrames.length) % heartFrames.length];
     const sway = Math.sin(cycle * Math.PI * 2) * 3;
@@ -1050,8 +1052,8 @@ function drawEndingActors(cameraX, cameraY) {
       SEATED_CAT_DRAW_SIZE.height,
       cameraX,
       cameraY,
-      0,
-      SEATED_ENDING_DRAW_OFFSET_Y
+      SEATED_CAT_DRAW_OFFSET.x,
+      SEATED_CAT_DRAW_OFFSET.y
     );
     drawWorldSprite(
       strawberryFrame,
@@ -1061,8 +1063,8 @@ function drawEndingActors(cameraX, cameraY) {
       SEATED_STRAWBERRY_DRAW_SIZE.height,
       cameraX,
       cameraY,
-      0,
-      SEATED_ENDING_DRAW_OFFSET_Y
+      SEATED_STRAWBERRY_DRAW_OFFSET.x,
+      SEATED_STRAWBERRY_DRAW_OFFSET.y
     );
   } else {
     drawWorldSprite(catFrame, actorState.cat.x, actorState.cat.y, 40, 40, cameraX, cameraY);
@@ -1214,6 +1216,7 @@ function updateCutscene(delta) {
 
   state.endingCutscene.timeline = clamp(state.endingCutscene.timeline + delta, 0, ENDING_TOTAL_DURATION);
   state.endingCutscene.heartTime += delta;
+  state.endingCutscene.heartLoopTime += delta;
   if (state.endingCutscene.heartTime >= 220) {
     state.endingCutscene.heartFrame = (state.endingCutscene.heartFrame + 1) % state.assets.heartFrames.length;
     state.endingCutscene.heartTime = 0;
@@ -1430,6 +1433,7 @@ function startEndingCutscene() {
   state.endingCutscene.fireworksStarted = false;
   state.endingCutscene.heartFrame = 0;
   state.endingCutscene.heartTime = 0;
+  state.endingCutscene.heartLoopTime = 0;
   endingBanner.classList.add("hidden");
   updateHud();
 }

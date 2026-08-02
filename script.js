@@ -71,8 +71,8 @@ const GAME_CONFIG = {
   }
 };
 
-// Versioned sprite URLs keep GitHub Pages and the browser from reusing an older cached cat sheet.
-const PLAYER_FRAME_VERSION = "20260801-cat-clean-3";
+// Versioned character URLs keep GitHub Pages and the browser from reusing older sprite exports.
+const PLAYER_FRAME_VERSION = "20260802-character-picker-1";
 const ENDING_ASSET_VERSION = "20260802-ending-seat-1";
 
 GAME_CONFIG.assets.bench = `assets/ending/bench-double.png?v=${ENDING_ASSET_VERSION}`;
@@ -87,23 +87,41 @@ GAME_CONFIG.assets.hearts = Array.from(
   (_, index) => `assets/ending/heart-${index}.png?v=${ENDING_ASSET_VERSION}`
 );
 
-const PLAYER_FRAME_PATHS = {
-  down: [
-    `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,
-    `assets/player-cat/down-1.png?v=${PLAYER_FRAME_VERSION}`
-  ],
-  left: [
-    `assets/player-cat/left-0.png?v=${PLAYER_FRAME_VERSION}`,
-    `assets/player-cat/left-1.png?v=${PLAYER_FRAME_VERSION}`
-  ],
-  up: [
-    `assets/player-cat/up-0.png?v=${PLAYER_FRAME_VERSION}`,
-    `assets/player-cat/up-1.png?v=${PLAYER_FRAME_VERSION}`
-  ],
-  right: [
-    `assets/player-cat/right-0.png?v=${PLAYER_FRAME_VERSION}`,
-    `assets/player-cat/right-1.png?v=${PLAYER_FRAME_VERSION}`
-  ]
+function buildPlayerFramePaths(folder) {
+  return {
+    down: [
+      `${folder}/down-0.png?v=${PLAYER_FRAME_VERSION}`,
+      `${folder}/down-1.png?v=${PLAYER_FRAME_VERSION}`
+    ],
+    left: [
+      `${folder}/left-0.png?v=${PLAYER_FRAME_VERSION}`,
+      `${folder}/left-1.png?v=${PLAYER_FRAME_VERSION}`
+    ],
+    up: [
+      `${folder}/up-0.png?v=${PLAYER_FRAME_VERSION}`,
+      `${folder}/up-1.png?v=${PLAYER_FRAME_VERSION}`
+    ],
+    right: [
+      `${folder}/right-0.png?v=${PLAYER_FRAME_VERSION}`,
+      `${folder}/right-1.png?v=${PLAYER_FRAME_VERSION}`
+    ]
+  };
+}
+
+// Both player choices live in one shared config so later partner-swap logic can branch from the same source of truth.
+const CHARACTER_OPTIONS = {
+  white: {
+    label: "Original Cat",
+    preview: `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,
+    sit: `assets/ending/cat-sit.png?v=${ENDING_ASSET_VERSION}`,
+    playerFrames: buildPlayerFramePaths("assets/player-cat")
+  },
+  pink: {
+    label: "Pink Nubcat",
+    preview: `assets/player-pink/down-0.png?v=${PLAYER_FRAME_VERSION}`,
+    sit: `assets/ending/pink-cat-sit.png?v=${PLAYER_FRAME_VERSION}`,
+    playerFrames: buildPlayerFramePaths("assets/player-pink")
+  }
 };
 
 // Terrain legend:
@@ -215,11 +233,19 @@ const dialogNote = document.querySelector("#dialog-note");
 const dialogImage = document.querySelector("#dialog-image");
 const dialogPlaceholder = document.querySelector("#dialog-placeholder");
 const endingBanner = document.querySelector("#ending-banner");
+const characterPicker = document.querySelector("#character-picker");
+const characterChoiceButtons = Array.from(document.querySelectorAll("[data-character-choice]"));
+const characterPreviewWhite = document.querySelector("#character-preview-white");
+const characterPreviewPink = document.querySelector("#character-preview-pink");
+const characterLabelWhite = document.querySelector("#character-label-white");
+const characterLabelPink = document.querySelector("#character-label-pink");
 
 const state = {
   player: { ...GAME_CONFIG.start },
   facing: "up",
   stepPhase: 0,
+  selectedCharacterId: "white",
+  isCharacterPickerOpen: true,
   completedStopIds: new Set(),
   activeStop: null,
   isDialogOpen: false,
@@ -243,6 +269,10 @@ const state = {
     heartLoopTime: 0
   }
 };
+
+function getSelectedCharacterOption() {
+  return CHARACTER_OPTIONS[state.selectedCharacterId] ?? CHARACTER_OPTIONS.white;
+}
 
 async function loadBuildVersion() {
   if (!buildVersionText) {
@@ -695,6 +725,26 @@ function createSparkleFrames() {
   });
 }
 
+async function loadCharacterAssets(characterOption) {
+  const [sitImage, ...playerFrameImages] = await Promise.all([
+    loadImage(characterOption.sit),
+    ...Object.values(characterOption.playerFrames).flat().map((path) => loadImage(path))
+  ]);
+
+  // Each character keeps the same four-direction animation contract, which lets the rest of the game stay generic.
+  const playerFrames = {
+    down: playerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)),
+    left: playerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)),
+    up: playerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)),
+    right: playerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image))
+  };
+
+  return {
+    sit: trimTransparentSprite(sitImage),
+    playerFrames
+  };
+}
+
 async function loadAssets() {
   const [
     grassImage,
@@ -711,11 +761,9 @@ async function loadAssets() {
     strawberryWalk0Image,
     strawberryWalk1Image,
     strawberrySitImage,
-    catSitImage,
     heart0Image,
     heart1Image,
-    heart2Image,
-    ...playerFrameImages
+    heart2Image
   ] = await Promise.all([
     loadImage(GAME_CONFIG.assets.grass),
     loadImage(GAME_CONFIG.assets.stone),
@@ -730,17 +778,17 @@ async function loadAssets() {
     loadImage(GAME_CONFIG.assets.ocean),
     ...GAME_CONFIG.assets.strawberryWalk.map((path) => loadImage(path)),
     loadImage(GAME_CONFIG.assets.strawberrySit),
-    loadImage(GAME_CONFIG.assets.catSit),
-    ...GAME_CONFIG.assets.hearts.map((path) => loadImage(path)),
-    ...Object.values(PLAYER_FRAME_PATHS).flat().map((path) => loadImage(path))
+    ...GAME_CONFIG.assets.hearts.map((path) => loadImage(path))
   ]);
 
-  const playerFrames = {
-    down: playerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)),
-    left: playerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)),
-    up: playerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)),
-    right: playerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image))
-  };
+  const characters = Object.fromEntries(
+    await Promise.all(
+      Object.entries(CHARACTER_OPTIONS).map(async ([characterId, characterOption]) => {
+        const characterAssets = await loadCharacterAssets(characterOption);
+        return [characterId, characterAssets];
+      })
+    )
+  );
 
   return {
     grass: createTileCanvas(grassImage),
@@ -756,9 +804,8 @@ async function loadAssets() {
     ocean: oceanImage,
     strawberryWalk: [strawberryWalk0Image, strawberryWalk1Image].map((image) => trimTransparentSprite(image)),
     strawberrySit: trimTransparentSprite(strawberrySitImage),
-    catSit: trimTransparentSprite(catSitImage),
     heartFrames: [heart0Image, heart1Image, heart2Image].map((image) => trimTransparentSprite(image)),
-    playerFrames,
+    characters,
     sparkleFrames: createSparkleFrames()
   };
 }
@@ -820,6 +867,10 @@ function getEndingActorState() {
     cat: sampleWaypointPath(CAT_ENDING_PATH, walkProgress),
     strawberry: sampleWaypointPath(STRAWBERRY_ENDING_PATH, walkProgress)
   };
+}
+
+function getSelectedCharacterAssets() {
+  return state.assets?.characters?.[state.selectedCharacterId] ?? state.assets?.characters?.white;
 }
 
 function updateHud() {
@@ -1035,9 +1086,10 @@ function drawEndingHearts(cameraX, cameraY) {
 
 function drawEndingActors(cameraX, cameraY) {
   const actorState = getEndingActorState();
+  const selectedCharacterAssets = getSelectedCharacterAssets();
   const catFrame = actorState.isSeated
-    ? state.assets.catSit
-    : state.assets.playerFrames[actorState.cat.facing][actorState.cat.stepPhase];
+    ? selectedCharacterAssets?.sit
+    : selectedCharacterAssets?.playerFrames?.[actorState.cat.facing]?.[actorState.cat.stepPhase];
   const strawberryFrame = actorState.isSeated
     ? state.assets.strawberrySit
     : state.assets.strawberryWalk[actorState.strawberry.stepPhase];
@@ -1106,13 +1158,14 @@ function drawPlayer() {
     return;
   }
 
+  const selectedCharacterAssets = getSelectedCharacterAssets();
   const center = VIEWPORT_PIXELS / 2;
   const cutsceneOffset = state.endingCutscene.active
     ? Math.round(lerp(0, GAME_CONFIG.tileSize * 5.5, state.endingCutscene.progress))
     : 0;
   const baseX = center - GAME_CONFIG.tileSize / 2;
   const baseY = center - GAME_CONFIG.tileSize / 2 + cutsceneOffset;
-  const frames = state.assets.playerFrames?.[state.facing] ?? state.assets.playerFrames?.down;
+  const frames = selectedCharacterAssets?.playerFrames?.[state.facing] ?? selectedCharacterAssets?.playerFrames?.down;
   const frame = frames?.[state.stepPhase] ?? frames?.[0];
 
   if (!frame) {
@@ -1439,7 +1492,7 @@ function startEndingCutscene() {
 }
 
 function interact() {
-  if (state.isDialogOpen || state.endingCutscene.active) {
+  if (state.isCharacterPickerOpen || state.isDialogOpen || state.endingCutscene.active) {
     return;
   }
 
@@ -1459,7 +1512,7 @@ function interact() {
 }
 
 function movePlayer(dx, dy) {
-  if (state.isDialogOpen || state.endingCutscene.active) {
+  if (state.isCharacterPickerOpen || state.isDialogOpen || state.endingCutscene.active) {
     return;
   }
 
@@ -1484,6 +1537,10 @@ function handleKeydown(event) {
     event.preventDefault();
   }
 
+  if (state.isCharacterPickerOpen) {
+    return;
+  }
+
   if (key === "arrowup" || key === "w") {
     movePlayer(0, -1);
   } else if (key === "arrowdown" || key === "s") {
@@ -1503,9 +1560,29 @@ function handleKeydown(event) {
   }
 }
 
+function chooseCharacter(characterId) {
+  if (!CHARACTER_OPTIONS[characterId]) {
+    return;
+  }
+
+  // Selection only swaps the player asset set for now, which keeps the future partner swap isolated.
+  state.selectedCharacterId = characterId;
+  state.isCharacterPickerOpen = false;
+  characterPicker.classList.add("hidden");
+  characterPicker.setAttribute("aria-hidden", "true");
+}
+
+function initializeCharacterPicker() {
+  characterPreviewWhite.src = CHARACTER_OPTIONS.white.preview;
+  characterPreviewPink.src = CHARACTER_OPTIONS.pink.preview;
+  characterLabelWhite.textContent = CHARACTER_OPTIONS.white.label;
+  characterLabelPink.textContent = CHARACTER_OPTIONS.pink.label;
+}
+
 async function initializeGame() {
   gameContext.imageSmoothingEnabled = false;
   fireworksContext.imageSmoothingEnabled = false;
+  initializeCharacterPicker();
   loadBuildVersion();
   state.assets = await loadAssets();
   updateHud();
@@ -1519,6 +1596,9 @@ dialogBackdrop.addEventListener("click", (event) => {
   }
 });
 closeDialogButton.addEventListener("click", closeDialog);
+characterChoiceButtons.forEach((button) => {
+  button.addEventListener("click", () => chooseCharacter(button.dataset.characterChoice));
+});
 
 initializeGame().catch((error) => {
   console.error("Failed to initialize game", error);

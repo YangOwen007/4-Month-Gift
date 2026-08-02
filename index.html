@@ -77,6 +77,24 @@
     </article>
   </section>
 
-  <script src="script.js?v=bench-strawberry-finale-20260802e"></script>
+  <section id="character-picker" class="character-picker-backdrop" aria-hidden="false">
+    <article class="character-picker-card" role="dialog" aria-modal="true" aria-labelledby="character-picker-title">
+      <p class="dialog-kicker">Choose Your Character</p>
+      <h2 id="character-picker-title">Who should take the walk?</h2>
+      <p class="character-picker-note">You can start as the original white cat or the new pink nubcat.</p>
+      <div class="character-choice-grid">
+        <button class="character-choice" type="button" data-character-choice="white">
+          <img id="character-preview-white" class="character-choice__image" alt="Original white cat preview">
+          <strong id="character-label-white" class="character-choice__label">Original Cat</strong>
+        </button>
+        <button class="character-choice" type="button" data-character-choice="pink">
+          <img id="character-preview-pink" class="character-choice__image" alt="Pink nubcat preview">
+          <strong id="character-label-pink" class="character-choice__label">Pink Nubcat</strong>
+        </button>
+      </div>
+    </article>
+  </section>
+
+  <script src="script.js?v=character-picker-20260802a"></script>
 </body>
 </html>

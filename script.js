@@ -7,7 +7,8 @@ const GAME_CONFIG = {
   tileSize: 48,
   start: { x: 13, y: 31 },
   end: { x: 13, y: 4 },
-  bench: { x: 13, y: 3 },
+  bench: { x: 12, y: 3 },
+  strawberry: { x: 13, y: 4 },
   stops: [
     {
       id: "first-stop",
@@ -53,11 +54,18 @@ const GAME_CONFIG = {
     tree: "assets/refined/tree.png",
     bush: "assets/refined/bush.png",
     rock: "assets/cohesive/rock.png",
-    bench: "assets/refined/bench.png",
+    bench: "assets/ending/bench-double.png",
     fenceHorizontal: "assets/refined/fence-horizontal.png",
     fenceVertical: "assets/refined/fence-vertical.png",
     path: "assets/refined/path-fill.png",
     ocean: "assets/ocean-generated.png",
+    strawberryWalk: [
+      "assets/ending/strawberry-walk-0.png",
+      "assets/ending/strawberry-walk-1.png"
+    ],
+    strawberrySit: "assets/ending/strawberry-sit.png",
+    catSit: "assets/ending/cat-sit.png",
+    hearts: Array.from({ length: 3 }, (_, index) => `assets/ending/heart-${index}.png`),
     sparkles: Array.from({ length: 12 }, (_, index) => `assets/sparkles/sparkle-${index}.png`),
     fireworks: Array.from({ length: 7 }, (_, index) => `assets/fireworks/firework-${index}.png`)
   }
@@ -149,9 +157,27 @@ const PATH_SEGMENTS = [
 const TERRAIN_ROWS = RAW_TERRAIN_ROWS.map((row) => row.slice(0, GAME_CONFIG.mapWidth).padEnd(GAME_CONFIG.mapWidth, "g"));
 const VIEWPORT_PIXELS = GAME_CONFIG.viewportTiles * GAME_CONFIG.tileSize;
 const BENCH_POSITION = GAME_CONFIG.bench;
+const STRAWBERRY_POSITION = GAME_CONFIG.strawberry;
 const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
+const BENCH_DRAW_SIZE = { width: 88, height: 36 };
+const STRAWBERRY_DRAW_SIZE = { width: 34, height: 36 };
+const ENDING_WALK_DURATION = 2200;
+const ENDING_CAMERA_DURATION = 2600;
+const ENDING_TOTAL_DURATION = ENDING_WALK_DURATION + ENDING_CAMERA_DURATION;
+const CAT_ENDING_PATH = [
+  { x: 13, y: 4 },
+  { x: 12.1, y: 4.14 },
+  { x: 12.12, y: 3.58 },
+  { x: 12.56, y: 3.3 }
+];
+const STRAWBERRY_ENDING_PATH = [
+  { x: 13, y: 4 },
+  { x: 13.9, y: 4.14 },
+  { x: 13.88, y: 3.58 },
+  { x: 13.3, y: 3.3 }
+];
 
 const gameCanvas = document.querySelector("#game-canvas");
 const gameContext = gameCanvas.getContext("2d");
@@ -188,8 +214,11 @@ const state = {
   assets: null,
   endingCutscene: {
     active: false,
+    timeline: 0,
     progress: 0,
-    fireworksStarted: false
+    fireworksStarted: false,
+    heartFrame: 0,
+    heartTime: 0
   }
 };
 
@@ -645,7 +674,27 @@ function createSparkleFrames() {
 }
 
 async function loadAssets() {
-  const [grassImage, stoneImage, cliffImage, treeImage, bushImage, rockImage, benchImage, fenceHorizontalImage, fenceVerticalImage, pathImage, oceanImage, ...playerFrameImages] = await Promise.all([
+  const [
+    grassImage,
+    stoneImage,
+    cliffImage,
+    treeImage,
+    bushImage,
+    rockImage,
+    benchImage,
+    fenceHorizontalImage,
+    fenceVerticalImage,
+    pathImage,
+    oceanImage,
+    strawberryWalk0Image,
+    strawberryWalk1Image,
+    strawberrySitImage,
+    catSitImage,
+    heart0Image,
+    heart1Image,
+    heart2Image,
+    ...playerFrameImages
+  ] = await Promise.all([
     loadImage(GAME_CONFIG.assets.grass),
     loadImage(GAME_CONFIG.assets.stone),
     loadImage(GAME_CONFIG.assets.cliff),
@@ -657,6 +706,10 @@ async function loadAssets() {
     loadImage(GAME_CONFIG.assets.fenceVertical),
     loadImage(GAME_CONFIG.assets.path),
     loadImage(GAME_CONFIG.assets.ocean),
+    ...GAME_CONFIG.assets.strawberryWalk.map((path) => loadImage(path)),
+    loadImage(GAME_CONFIG.assets.strawberrySit),
+    loadImage(GAME_CONFIG.assets.catSit),
+    ...GAME_CONFIG.assets.hearts.map((path) => loadImage(path)),
     ...Object.values(PLAYER_FRAME_PATHS).flat().map((path) => loadImage(path))
   ]);
 
@@ -674,13 +727,76 @@ async function loadAssets() {
     tree: trimSprite(treeImage, 96),
     bush: trimSprite(bushImage, 96),
     rock: trimSprite(rockImage, 96),
-    bench: trimSprite(benchImage, 96),
+    bench: trimTransparentSprite(benchImage),
     fenceHorizontal: trimSprite(fenceHorizontalImage, 96),
     fenceVertical: trimSprite(fenceVerticalImage, 96),
     path: createTileCanvas(pathImage),
     ocean: oceanImage,
+    strawberryWalk: [strawberryWalk0Image, strawberryWalk1Image].map((image) => trimTransparentSprite(image)),
+    strawberrySit: trimTransparentSprite(strawberrySitImage),
+    catSit: trimTransparentSprite(catSitImage),
+    heartFrames: [heart0Image, heart1Image, heart2Image].map((image) => trimTransparentSprite(image)),
     playerFrames,
     sparkleFrames: createSparkleFrames()
+  };
+}
+
+function sampleWaypointPath(waypoints, progress) {
+  const segments = [];
+  let totalLength = 0;
+
+  // We walk the cutscene actors across measured segment lengths so both curves feel evenly paced.
+  for (let index = 0; index < waypoints.length - 1; index += 1) {
+    const from = waypoints[index];
+    const to = waypoints[index + 1];
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    segments.push({ from, to, length });
+    totalLength += length;
+  }
+
+  if (totalLength === 0 || segments.length === 0) {
+    return { ...waypoints[0], facing: "up", stepPhase: 0 };
+  }
+
+  let remaining = totalLength * clamp(progress, 0, 1);
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+
+    if (remaining <= segment.length || index === segments.length - 1) {
+      const localProgress = segment.length === 0 ? 0 : remaining / segment.length;
+      const x = lerp(segment.from.x, segment.to.x, localProgress);
+      const y = lerp(segment.from.y, segment.to.y, localProgress);
+      const dx = segment.to.x - segment.from.x;
+      const dy = segment.to.y - segment.from.y;
+      const facing = Math.abs(dx) > Math.abs(dy)
+        ? (dx >= 0 ? "right" : "left")
+        : (dy >= 0 ? "down" : "up");
+
+      return {
+        x,
+        y,
+        facing,
+        stepPhase: Math.floor(progress * 8) % 2
+      };
+    }
+
+    remaining -= segment.length;
+  }
+
+  const fallback = waypoints[waypoints.length - 1];
+  return { ...fallback, facing: "up", stepPhase: 0 };
+}
+
+function getEndingActorState() {
+  const walkProgress = clamp(state.endingCutscene.timeline / ENDING_WALK_DURATION, 0, 1);
+  const isSeated = walkProgress >= 1;
+
+  return {
+    walkProgress,
+    isSeated,
+    cat: sampleWaypointPath(CAT_ENDING_PATH, walkProgress),
+    strawberry: sampleWaypointPath(STRAWBERRY_ENDING_PATH, walkProgress)
   };
 }
 
@@ -706,7 +822,7 @@ function updateHud() {
     return;
   }
 
-  objectiveText.textContent = "Head to the cliff and interact by the bench.";
+  objectiveText.textContent = 'Meet the strawberry at the bench and interact.';
 }
 
 function getCenteredCameraOrigin() {
@@ -759,8 +875,14 @@ function drawFence(screenX, screenY, isVertical) {
 }
 
 function drawOceanBench(screenX, screenY) {
-  // This bench is viewed from behind so it reads like it is facing the ocean overlook.
-  gameContext.drawImage(state.assets.bench, screenX + 6, screenY + 10, 36, 20);
+  // The finale bench spans two cliff tiles so both characters can sit together without crowding.
+  gameContext.drawImage(
+    state.assets.bench,
+    screenX + 4,
+    screenY + 8,
+    BENCH_DRAW_SIZE.width,
+    BENCH_DRAW_SIZE.height
+  );
 }
 
 function drawTextureTile(image, screenX, screenY, tileX, tileY) {
@@ -829,6 +951,65 @@ function drawBench(screenX, screenY) {
   drawOceanBench(screenX, screenY);
 }
 
+function drawIdleStrawberry(screenX, screenY) {
+  const frame = state.assets.strawberryWalk[Math.floor(state.lastTimestamp / 260) % state.assets.strawberryWalk.length];
+  gameContext.drawImage(
+    frame,
+    screenX + 7,
+    screenY + 7,
+    STRAWBERRY_DRAW_SIZE.width,
+    STRAWBERRY_DRAW_SIZE.height
+  );
+}
+
+function drawWorldSprite(image, worldX, worldY, width, height, cameraX, cameraY) {
+  const screenX = worldX * GAME_CONFIG.tileSize + cameraX + (GAME_CONFIG.tileSize - width) / 2;
+  const screenY = worldY * GAME_CONFIG.tileSize + cameraY + (GAME_CONFIG.tileSize - height) / 2;
+  gameContext.drawImage(image, screenX, screenY, width, height);
+}
+
+function drawEndingHearts(cameraX, cameraY) {
+  if (state.endingCutscene.timeline < ENDING_WALK_DURATION) {
+    return;
+  }
+
+  const heartFrames = state.assets.heartFrames;
+  const actorState = getEndingActorState();
+  const anchors = [
+    { x: actorState.cat.x + 0.16, y: actorState.cat.y - 0.14, delay: 0 },
+    { x: actorState.strawberry.x + 0.18, y: actorState.strawberry.y - 0.1, delay: 320 },
+    { x: actorState.cat.x + 0.42, y: actorState.cat.y - 0.24, delay: 640 },
+    { x: actorState.strawberry.x + 0.44, y: actorState.strawberry.y - 0.18, delay: 960 }
+  ];
+
+  // The heart loops are deterministic, so the ending always reads clearly without extra particle bookkeeping.
+  for (const anchor of anchors) {
+    const localTime = Math.max(0, state.endingCutscene.timeline - ENDING_WALK_DURATION + anchor.delay);
+    const cycle = (localTime % 1500) / 1500;
+    const heartFrame = heartFrames[Math.floor(cycle * heartFrames.length) % heartFrames.length];
+    const sway = Math.sin(cycle * Math.PI * 2) * 3;
+    const rise = cycle * 18;
+    const x = anchor.x * GAME_CONFIG.tileSize + cameraX + sway;
+    const y = anchor.y * GAME_CONFIG.tileSize + cameraY - rise;
+    gameContext.drawImage(heartFrame, x, y, 18, 18);
+  }
+}
+
+function drawEndingActors(cameraX, cameraY) {
+  const actorState = getEndingActorState();
+  const catFrame = actorState.isSeated
+    ? state.assets.catSit
+    : state.assets.playerFrames[actorState.cat.facing][actorState.cat.stepPhase];
+  const strawberryFrame = actorState.isSeated
+    ? state.assets.strawberrySit
+    : state.assets.strawberryWalk[actorState.strawberry.stepPhase];
+
+  // While moving, both characters use standing poses; once seated we swap into dedicated bench sprites.
+  drawWorldSprite(catFrame, actorState.cat.x, actorState.cat.y, 40, 40, cameraX, cameraY);
+  drawWorldSprite(strawberryFrame, actorState.strawberry.x, actorState.strawberry.y, 36, 36, cameraX, cameraY);
+  drawEndingHearts(cameraX, cameraY);
+}
+
 function shouldShowOceanBackdrop() {
   return state.player.y <= 9 || state.endingCutscene.active;
 }
@@ -859,6 +1040,10 @@ function getPathNeighbors(x, y) {
 }
 
 function drawPlayer() {
+  if (state.endingCutscene.active) {
+    return;
+  }
+
   const center = VIEWPORT_PIXELS / 2;
   const cutsceneOffset = state.endingCutscene.active
     ? Math.round(lerp(0, GAME_CONFIG.tileSize * 5.5, state.endingCutscene.progress))
@@ -953,6 +1138,10 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
     drawBench(screenX, screenY);
   }
 
+  if (!state.endingCutscene.active && tileX === STRAWBERRY_POSITION.x && tileY === STRAWBERRY_POSITION.y) {
+    drawIdleStrawberry(screenX, screenY);
+  }
+
   if (treeSet.has(tileKey)) {
     drawStyledTree(screenX, screenY);
   }
@@ -963,9 +1152,18 @@ function updateCutscene(delta) {
     return;
   }
 
-  state.endingCutscene.progress = clamp(state.endingCutscene.progress + delta / 2800, 0, 1);
+  state.endingCutscene.timeline = clamp(state.endingCutscene.timeline + delta, 0, ENDING_TOTAL_DURATION);
+  state.endingCutscene.heartTime += delta;
+  if (state.endingCutscene.heartTime >= 220) {
+    state.endingCutscene.heartFrame = (state.endingCutscene.heartFrame + 1) % state.assets.heartFrames.length;
+    state.endingCutscene.heartTime = 0;
+  }
 
-  if (!state.endingCutscene.fireworksStarted && state.endingCutscene.progress >= 0.35) {
+  // The camera waits until both characters are seated, then drifts upward toward the ocean reveal.
+  const cameraTime = Math.max(0, state.endingCutscene.timeline - ENDING_WALK_DURATION);
+  state.endingCutscene.progress = clamp(cameraTime / ENDING_CAMERA_DURATION, 0, 1);
+
+  if (!state.endingCutscene.fireworksStarted && state.endingCutscene.timeline >= ENDING_WALK_DURATION + 500) {
     state.endingCutscene.fireworksStarted = true;
     unlockEnding();
   }
@@ -1016,6 +1214,10 @@ function renderGame(timestamp = 0) {
   const nextStop = getNextRequiredStop();
   if (nextStop?.gate) {
     drawGate(nextStop.gate.x, nextStop.gate.y, camera.x, camera.y);
+  }
+
+  if (state.endingCutscene.active) {
+    drawEndingActors(camera.x, camera.y);
   }
 
   drawPlayer();
@@ -1157,8 +1359,15 @@ function startEndingCutscene() {
   }
 
   state.endingCutscene.active = true;
+  state.player.x = STRAWBERRY_POSITION.x;
+  state.player.y = STRAWBERRY_POSITION.y;
+  state.facing = "up";
+  state.stepPhase = 0;
+  state.endingCutscene.timeline = 0;
   state.endingCutscene.progress = 0;
   state.endingCutscene.fireworksStarted = false;
+  state.endingCutscene.heartFrame = 0;
+  state.endingCutscene.heartTime = 0;
   endingBanner.classList.add("hidden");
   updateHud();
 }
@@ -1176,8 +1385,8 @@ function interact() {
 
   if (
     state.completedStopIds.size === GAME_CONFIG.stops.length &&
-    state.player.x === GAME_CONFIG.end.x &&
-    state.player.y === GAME_CONFIG.end.y
+    state.player.x === STRAWBERRY_POSITION.x &&
+    state.player.y === STRAWBERRY_POSITION.y
   ) {
     startEndingCutscene();
   }

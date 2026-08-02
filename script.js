@@ -181,6 +181,8 @@ const BENCH_DRAW_SIZE = { width: 88, height: 36 };
 const STRAWBERRY_DRAW_SIZE = { width: 34, height: 36 };
 const SEATED_CAT_DRAW_SIZE = { width: 38, height: 38 };
 const SEATED_STRAWBERRY_DRAW_SIZE = { width: 30, height: 32 };
+// Seated characters share the same vertical nudge as the bench so the whole finale grouping stays aligned.
+const SEATED_ENDING_DRAW_OFFSET_Y = 32;
 const ENDING_WALK_DURATION = 2200;
 const ENDING_CAMERA_DURATION = 2600;
 const ENDING_TOTAL_DURATION = ENDING_WALK_DURATION + ENDING_CAMERA_DURATION;
@@ -1007,22 +1009,24 @@ function drawEndingHearts(cameraX, cameraY) {
   }
 
   const heartFrames = state.assets.heartFrames;
+  const benchScreenX = BENCH_POSITION.x * GAME_CONFIG.tileSize + cameraX + BENCH_DRAW_OFFSET.x;
+  const benchScreenY = BENCH_POSITION.y * GAME_CONFIG.tileSize + cameraY + BENCH_DRAW_OFFSET.y;
   const seatedHeartAnchors = [
-    { x: BENCH_POSITION.x + 0.9, y: BENCH_POSITION.y + 0.72, delay: 0 },
-    { x: BENCH_POSITION.x + 1.58, y: BENCH_POSITION.y + 0.74, delay: 320 },
-    { x: BENCH_POSITION.x + 1.12, y: BENCH_POSITION.y + 0.52, delay: 640 },
-    { x: BENCH_POSITION.x + 1.38, y: BENCH_POSITION.y + 0.48, delay: 960 }
+    { x: benchScreenX + 22, y: benchScreenY + 4, delay: 0 },
+    { x: benchScreenX + 58, y: benchScreenY + 6, delay: 320 },
+    { x: benchScreenX + 34, y: benchScreenY - 8, delay: 640 },
+    { x: benchScreenX + 50, y: benchScreenY - 10, delay: 960 }
   ];
 
-  // Once the pair is seated, the hearts should keep bubbling up from the bench area for the rest of the camera drift.
+  // Anchoring directly to the drawn bench keeps the hearts visible even after the camera finishes its upward move.
   for (const anchor of seatedHeartAnchors) {
     const localTime = Math.max(0, state.endingCutscene.timeline - ENDING_WALK_DURATION + anchor.delay);
     const cycle = (localTime % 1500) / 1500;
     const heartFrame = heartFrames[Math.floor(cycle * heartFrames.length) % heartFrames.length];
     const sway = Math.sin(cycle * Math.PI * 2) * 3;
     const rise = cycle * 18;
-    const x = anchor.x * GAME_CONFIG.tileSize + cameraX + sway;
-    const y = anchor.y * GAME_CONFIG.tileSize + cameraY - rise;
+    const x = anchor.x + sway;
+    const y = anchor.y - rise;
     gameContext.drawImage(heartFrame, x, y, 18, 18);
   }
 }
@@ -1047,7 +1051,7 @@ function drawEndingActors(cameraX, cameraY) {
       cameraX,
       cameraY,
       0,
-      8
+      SEATED_ENDING_DRAW_OFFSET_Y
     );
     drawWorldSprite(
       strawberryFrame,
@@ -1058,14 +1062,12 @@ function drawEndingActors(cameraX, cameraY) {
       cameraX,
       cameraY,
       0,
-      8
+      SEATED_ENDING_DRAW_OFFSET_Y
     );
   } else {
     drawWorldSprite(catFrame, actorState.cat.x, actorState.cat.y, 40, 40, cameraX, cameraY);
     drawWorldSprite(strawberryFrame, actorState.strawberry.x, actorState.strawberry.y, 36, 36, cameraX, cameraY);
   }
-
-  drawEndingHearts(cameraX, cameraY);
 }
 
 function shouldShowOceanBackdrop() {
@@ -1277,6 +1279,7 @@ function renderGame(timestamp = 0) {
   if (state.endingCutscene.active) {
     drawEndingActors(camera.x, camera.y);
     drawEndingBenchOverlay(camera.x, camera.y);
+    drawEndingHearts(camera.x, camera.y);
   }
 
   drawPlayer();

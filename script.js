@@ -175,6 +175,8 @@ const STRAWBERRY_POSITION = GAME_CONFIG.strawberry;
 const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
+// The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
+const BENCH_DRAW_OFFSET = { x: 28, y: 10 };
 const BENCH_DRAW_SIZE = { width: 88, height: 36 };
 const STRAWBERRY_DRAW_SIZE = { width: 34, height: 36 };
 const SEATED_CAT_DRAW_SIZE = { width: 38, height: 38 };
@@ -894,8 +896,8 @@ function drawOceanBench(screenX, screenY) {
   // The finale bench spans two cliff tiles so both characters can sit together without crowding.
   gameContext.drawImage(
     state.assets.bench,
-    screenX + 4,
-    screenY + 10,
+    screenX + BENCH_DRAW_OFFSET.x,
+    screenY + BENCH_DRAW_OFFSET.y,
     BENCH_DRAW_SIZE.width,
     BENCH_DRAW_SIZE.height
   );
@@ -1005,16 +1007,15 @@ function drawEndingHearts(cameraX, cameraY) {
   }
 
   const heartFrames = state.assets.heartFrames;
-  const actorState = getEndingActorState();
-  const anchors = [
-    { x: actorState.cat.x + 0.16, y: actorState.cat.y - 0.14, delay: 0 },
-    { x: actorState.strawberry.x + 0.18, y: actorState.strawberry.y - 0.1, delay: 320 },
-    { x: actorState.cat.x + 0.42, y: actorState.cat.y - 0.24, delay: 640 },
-    { x: actorState.strawberry.x + 0.44, y: actorState.strawberry.y - 0.18, delay: 960 }
+  const seatedHeartAnchors = [
+    { x: BENCH_POSITION.x + 0.9, y: BENCH_POSITION.y + 0.72, delay: 0 },
+    { x: BENCH_POSITION.x + 1.58, y: BENCH_POSITION.y + 0.74, delay: 320 },
+    { x: BENCH_POSITION.x + 1.12, y: BENCH_POSITION.y + 0.52, delay: 640 },
+    { x: BENCH_POSITION.x + 1.38, y: BENCH_POSITION.y + 0.48, delay: 960 }
   ];
 
-  // The heart loops are deterministic, so the ending always reads clearly without extra particle bookkeeping.
-  for (const anchor of anchors) {
+  // Once the pair is seated, the hearts should keep bubbling up from the bench area for the rest of the camera drift.
+  for (const anchor of seatedHeartAnchors) {
     const localTime = Math.max(0, state.endingCutscene.timeline - ENDING_WALK_DURATION + anchor.delay);
     const cycle = (localTime % 1500) / 1500;
     const heartFrame = heartFrames[Math.floor(cycle * heartFrames.length) % heartFrames.length];

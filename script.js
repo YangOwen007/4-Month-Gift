@@ -73,6 +73,20 @@ const GAME_CONFIG = {
 
 // Versioned sprite URLs keep GitHub Pages and the browser from reusing an older cached cat sheet.
 const PLAYER_FRAME_VERSION = "20260801-cat-clean-3";
+const ENDING_ASSET_VERSION = "20260802-ending-seat-1";
+
+GAME_CONFIG.assets.bench = `assets/ending/bench-double.png?v=${ENDING_ASSET_VERSION}`;
+GAME_CONFIG.assets.strawberryWalk = [
+  `assets/ending/strawberry-walk-0.png?v=${ENDING_ASSET_VERSION}`,
+  `assets/ending/strawberry-walk-1.png?v=${ENDING_ASSET_VERSION}`
+];
+GAME_CONFIG.assets.strawberrySit = `assets/ending/strawberry-sit.png?v=${ENDING_ASSET_VERSION}`;
+GAME_CONFIG.assets.catSit = `assets/ending/cat-sit.png?v=${ENDING_ASSET_VERSION}`;
+GAME_CONFIG.assets.hearts = Array.from(
+  { length: 3 },
+  (_, index) => `assets/ending/heart-${index}.png?v=${ENDING_ASSET_VERSION}`
+);
+
 const PLAYER_FRAME_PATHS = {
   down: [
     `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,
@@ -163,6 +177,8 @@ const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
 const BENCH_DRAW_SIZE = { width: 88, height: 36 };
 const STRAWBERRY_DRAW_SIZE = { width: 34, height: 36 };
+const SEATED_CAT_DRAW_SIZE = { width: 38, height: 38 };
+const SEATED_STRAWBERRY_DRAW_SIZE = { width: 30, height: 32 };
 const ENDING_WALK_DURATION = 2200;
 const ENDING_CAMERA_DURATION = 2600;
 const ENDING_TOTAL_DURATION = ENDING_WALK_DURATION + ENDING_CAMERA_DURATION;
@@ -170,13 +186,13 @@ const CAT_ENDING_PATH = [
   { x: 13, y: 4 },
   { x: 12.1, y: 4.14 },
   { x: 12.12, y: 3.58 },
-  { x: 12.56, y: 3.3 }
+  { x: 12.66, y: 3.16 }
 ];
 const STRAWBERRY_ENDING_PATH = [
   { x: 13, y: 4 },
   { x: 13.9, y: 4.14 },
   { x: 13.88, y: 3.58 },
-  { x: 13.3, y: 3.3 }
+  { x: 13.34, y: 3.16 }
 ];
 
 const gameCanvas = document.querySelector("#game-canvas");
@@ -879,7 +895,7 @@ function drawOceanBench(screenX, screenY) {
   gameContext.drawImage(
     state.assets.bench,
     screenX + 4,
-    screenY + 8,
+    screenY + 10,
     BENCH_DRAW_SIZE.width,
     BENCH_DRAW_SIZE.height
   );
@@ -962,10 +978,25 @@ function drawIdleStrawberry(screenX, screenY) {
   );
 }
 
-function drawWorldSprite(image, worldX, worldY, width, height, cameraX, cameraY) {
-  const screenX = worldX * GAME_CONFIG.tileSize + cameraX + (GAME_CONFIG.tileSize - width) / 2;
-  const screenY = worldY * GAME_CONFIG.tileSize + cameraY + (GAME_CONFIG.tileSize - height) / 2;
+function drawWorldSprite(image, worldX, worldY, width, height, cameraX, cameraY, offsetX = 0, offsetY = 0) {
+  const screenX = worldX * GAME_CONFIG.tileSize + cameraX + (GAME_CONFIG.tileSize - width) / 2 + offsetX;
+  const screenY = worldY * GAME_CONFIG.tileSize + cameraY + (GAME_CONFIG.tileSize - height) / 2 + offsetY;
   gameContext.drawImage(image, screenX, screenY, width, height);
+}
+
+function drawEndingBenchOverlay(cameraX, cameraY) {
+  const overlayThreshold = 0.62;
+  const actorState = getEndingActorState();
+
+  if (actorState.walkProgress < overlayThreshold) {
+    return;
+  }
+
+  const screenX = BENCH_POSITION.x * GAME_CONFIG.tileSize + cameraX;
+  const screenY = BENCH_POSITION.y * GAME_CONFIG.tileSize + cameraY;
+
+  // Once both characters have moved around the bench, drawing it again in the foreground sells the seated overlap.
+  drawBench(screenX, screenY);
 }
 
 function drawEndingHearts(cameraX, cameraY) {
@@ -1005,8 +1036,34 @@ function drawEndingActors(cameraX, cameraY) {
     : state.assets.strawberryWalk[actorState.strawberry.stepPhase];
 
   // While moving, both characters use standing poses; once seated we swap into dedicated bench sprites.
-  drawWorldSprite(catFrame, actorState.cat.x, actorState.cat.y, 40, 40, cameraX, cameraY);
-  drawWorldSprite(strawberryFrame, actorState.strawberry.x, actorState.strawberry.y, 36, 36, cameraX, cameraY);
+  if (actorState.isSeated) {
+    drawWorldSprite(
+      catFrame,
+      actorState.cat.x,
+      actorState.cat.y,
+      SEATED_CAT_DRAW_SIZE.width,
+      SEATED_CAT_DRAW_SIZE.height,
+      cameraX,
+      cameraY,
+      0,
+      8
+    );
+    drawWorldSprite(
+      strawberryFrame,
+      actorState.strawberry.x,
+      actorState.strawberry.y,
+      SEATED_STRAWBERRY_DRAW_SIZE.width,
+      SEATED_STRAWBERRY_DRAW_SIZE.height,
+      cameraX,
+      cameraY,
+      0,
+      8
+    );
+  } else {
+    drawWorldSprite(catFrame, actorState.cat.x, actorState.cat.y, 40, 40, cameraX, cameraY);
+    drawWorldSprite(strawberryFrame, actorState.strawberry.x, actorState.strawberry.y, 36, 36, cameraX, cameraY);
+  }
+
   drawEndingHearts(cameraX, cameraY);
 }
 
@@ -1218,6 +1275,7 @@ function renderGame(timestamp = 0) {
 
   if (state.endingCutscene.active) {
     drawEndingActors(camera.x, camera.y);
+    drawEndingBenchOverlay(camera.x, camera.y);
   }
 
   drawPlayer();

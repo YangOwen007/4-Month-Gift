@@ -72,7 +72,7 @@ const GAME_CONFIG = {
 };
 
 // Versioned character URLs keep GitHub Pages and the browser from reusing older sprite exports.
-const PLAYER_FRAME_VERSION = "20260802-character-picker-3";
+const PLAYER_FRAME_VERSION = "20260802-character-picker-4";
 const ENDING_ASSET_VERSION = "20260802-ending-seat-1";
 
 GAME_CONFIG.assets.bench = `assets/ending/bench-double.png?v=${ENDING_ASSET_VERSION}`;
@@ -120,9 +120,9 @@ const CHARACTER_OPTIONS = {
   },
   pink: {
     label: "Pink Nubcat",
-    preview: `assets/player-pink-v3/down-0.png?v=${PLAYER_FRAME_VERSION}`,
-    sit: `assets/ending/pink-cat-sit-v3.png?v=${PLAYER_FRAME_VERSION}`,
-    playerFrames: buildPlayerFramePaths("assets/player-pink-v3"),
+    preview: `assets/player-pink-v4/down-0.png?v=${PLAYER_FRAME_VERSION}`,
+    sit: `assets/ending/pink-cat-sit-v4.png?v=${PLAYER_FRAME_VERSION}`,
+    playerFrames: buildPlayerFramePaths("assets/player-pink-v4"),
     worldDraw: { width: 48, height: 48, offsetX: 0, offsetY: 0 },
     seatedDraw: { width: 42, height: 42, offsetX: 0, offsetY: -1 }
   }

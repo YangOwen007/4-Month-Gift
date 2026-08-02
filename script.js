@@ -72,7 +72,7 @@ const GAME_CONFIG = {
 };
 
 // Versioned character URLs keep GitHub Pages and the browser from reusing older sprite exports.
-const PLAYER_FRAME_VERSION = "20260802-character-picker-1";
+const PLAYER_FRAME_VERSION = "20260802-character-picker-2";
 const ENDING_ASSET_VERSION = "20260802-ending-seat-1";
 
 GAME_CONFIG.assets.bench = `assets/ending/bench-double.png?v=${ENDING_ASSET_VERSION}`;
@@ -118,9 +118,9 @@ const CHARACTER_OPTIONS = {
   },
   pink: {
     label: "Pink Nubcat",
-    preview: `assets/player-pink/down-0.png?v=${PLAYER_FRAME_VERSION}`,
-    sit: `assets/ending/pink-cat-sit.png?v=${PLAYER_FRAME_VERSION}`,
-    playerFrames: buildPlayerFramePaths("assets/player-pink")
+    preview: `assets/player-pink-v2/down-0.png?v=${PLAYER_FRAME_VERSION}`,
+    sit: `assets/ending/pink-cat-sit-v2.png?v=${PLAYER_FRAME_VERSION}`,
+    playerFrames: buildPlayerFramePaths("assets/player-pink-v2")
   }
 };
 

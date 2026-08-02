@@ -176,7 +176,7 @@ const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
 // The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
-const BENCH_DRAW_OFFSET = { x: 28, y: 10 };
+const BENCH_DRAW_OFFSET = { x: 28, y: 34 };
 const BENCH_DRAW_SIZE = { width: 88, height: 36 };
 const STRAWBERRY_DRAW_SIZE = { width: 34, height: 36 };
 const SEATED_CAT_DRAW_SIZE = { width: 38, height: 38 };

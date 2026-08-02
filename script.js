@@ -114,13 +114,17 @@ const CHARACTER_OPTIONS = {
     label: "Original Cat",
     preview: `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,
     sit: `assets/ending/cat-sit.png?v=${ENDING_ASSET_VERSION}`,
-    playerFrames: buildPlayerFramePaths("assets/player-cat")
+    playerFrames: buildPlayerFramePaths("assets/player-cat"),
+    worldDraw: { width: 40, height: 40, offsetX: 4, offsetY: 3 },
+    seatedDraw: { width: 38, height: 38, offsetX: 0, offsetY: 1 }
   },
   pink: {
     label: "Pink Nubcat",
     preview: `assets/player-pink-v3/down-0.png?v=${PLAYER_FRAME_VERSION}`,
     sit: `assets/ending/pink-cat-sit-v3.png?v=${PLAYER_FRAME_VERSION}`,
-    playerFrames: buildPlayerFramePaths("assets/player-pink-v3")
+    playerFrames: buildPlayerFramePaths("assets/player-pink-v3"),
+    worldDraw: { width: 48, height: 48, offsetX: 0, offsetY: 0 },
+    seatedDraw: { width: 42, height: 42, offsetX: 0, offsetY: -1 }
   }
 };
 
@@ -1087,6 +1091,7 @@ function drawEndingHearts(cameraX, cameraY) {
 function drawEndingActors(cameraX, cameraY) {
   const actorState = getEndingActorState();
   const selectedCharacterAssets = getSelectedCharacterAssets();
+  const selectedCharacterOption = getSelectedCharacterOption();
   const catFrame = actorState.isSeated
     ? selectedCharacterAssets?.sit
     : selectedCharacterAssets?.playerFrames?.[actorState.cat.facing]?.[actorState.cat.stepPhase];
@@ -1100,12 +1105,12 @@ function drawEndingActors(cameraX, cameraY) {
       catFrame,
       actorState.cat.x,
       actorState.cat.y,
-      SEATED_CAT_DRAW_SIZE.width,
-      SEATED_CAT_DRAW_SIZE.height,
+      selectedCharacterOption.seatedDraw.width,
+      selectedCharacterOption.seatedDraw.height,
       cameraX,
       cameraY,
-      SEATED_CAT_DRAW_OFFSET.x,
-      SEATED_CAT_DRAW_OFFSET.y
+      selectedCharacterOption.seatedDraw.offsetX,
+      selectedCharacterOption.seatedDraw.offsetY
     );
     drawWorldSprite(
       strawberryFrame,
@@ -1119,7 +1124,17 @@ function drawEndingActors(cameraX, cameraY) {
       SEATED_STRAWBERRY_DRAW_OFFSET.y
     );
   } else {
-    drawWorldSprite(catFrame, actorState.cat.x, actorState.cat.y, 40, 40, cameraX, cameraY);
+    drawWorldSprite(
+      catFrame,
+      actorState.cat.x,
+      actorState.cat.y,
+      selectedCharacterOption.worldDraw.width,
+      selectedCharacterOption.worldDraw.height,
+      cameraX,
+      cameraY,
+      selectedCharacterOption.worldDraw.offsetX,
+      selectedCharacterOption.worldDraw.offsetY
+    );
     drawWorldSprite(strawberryFrame, actorState.strawberry.x, actorState.strawberry.y, 36, 36, cameraX, cameraY);
   }
 }
@@ -1159,6 +1174,7 @@ function drawPlayer() {
   }
 
   const selectedCharacterAssets = getSelectedCharacterAssets();
+  const selectedCharacterOption = getSelectedCharacterOption();
   const center = VIEWPORT_PIXELS / 2;
   const cutsceneOffset = state.endingCutscene.active
     ? Math.round(lerp(0, GAME_CONFIG.tileSize * 5.5, state.endingCutscene.progress))
@@ -1174,7 +1190,13 @@ function drawPlayer() {
 
   // The cat sprite stays centered in the tile while still getting a tiny step bounce from movement.
   const bobOffset = state.stepPhase === 0 ? -1 : 1;
-  gameContext.drawImage(frame, baseX + 4, baseY + 3 + bobOffset, 40, 40);
+  gameContext.drawImage(
+    frame,
+    baseX + selectedCharacterOption.worldDraw.offsetX,
+    baseY + selectedCharacterOption.worldDraw.offsetY + bobOffset,
+    selectedCharacterOption.worldDraw.width,
+    selectedCharacterOption.worldDraw.height
+  );
 }
 
 function drawStopSparkle(stop, cameraX, cameraY) {

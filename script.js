@@ -196,10 +196,14 @@ const ROCK_POSITIONS = [
   { x: 18, y: 20 }, { x: 10, y: 6 }, { x: 16, y: 6 }
 ];
 
-// Fireflies live in calmer corners of the map so they read as atmosphere instead of gameplay markers.
+// Fireflies now appear across many more meadow tiles so the whole route feels alive at night.
 const FIREFLY_POSITIONS = [
-  { x: 7, y: 30 }, { x: 18, y: 29 }, { x: 20, y: 24 }, { x: 6, y: 21 },
-  { x: 19, y: 16 }, { x: 7, y: 12 }, { x: 18, y: 9 }, { x: 11, y: 7 }
+  { x: 5, y: 31 }, { x: 7, y: 30 }, { x: 10, y: 31 }, { x: 15, y: 31 }, { x: 18, y: 29 }, { x: 21, y: 30 },
+  { x: 6, y: 27 }, { x: 9, y: 26 }, { x: 12, y: 27 }, { x: 16, y: 26 }, { x: 20, y: 24 }, { x: 22, y: 25 },
+  { x: 5, y: 23 }, { x: 8, y: 22 }, { x: 13, y: 22 }, { x: 18, y: 22 }, { x: 6, y: 21 }, { x: 21, y: 21 },
+  { x: 4, y: 18 }, { x: 9, y: 18 }, { x: 14, y: 18 }, { x: 19, y: 16 }, { x: 22, y: 17 },
+  { x: 5, y: 14 }, { x: 7, y: 12 }, { x: 11, y: 12 }, { x: 16, y: 12 }, { x: 20, y: 12 },
+  { x: 6, y: 10 }, { x: 12, y: 9 }, { x: 18, y: 9 }, { x: 21, y: 8 }, { x: 11, y: 7 }, { x: 16, y: 7 }
 ];
 
 const PATH_SEGMENTS = [
@@ -221,6 +225,29 @@ const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
 const NIGHT_TINT_COLOR = "rgba(16, 28, 58, 0.36)";
+const MEMORY_GLOW_COLORS = ["rgba(255, 233, 138, 0.18)", "rgba(255, 201, 98, 0.22)", "rgba(255, 247, 204, 0.28)"];
+const FIREFLY_GLOW_COLORS = ["rgba(228, 247, 136, 0.12)", "rgba(255, 239, 171, 0.18)", "rgba(255, 247, 214, 0.24)"];
+const FIREFLY_SWARM_OFFSETS = [
+  { x: -12, y: -10, phase: 0, size: 2 },
+  { x: -4, y: -12, phase: 1, size: 2 },
+  { x: 7, y: -9, phase: 2, size: 2 },
+  { x: 13, y: -3, phase: 3, size: 1 },
+  { x: -14, y: 1, phase: 4, size: 2 },
+  { x: -5, y: 4, phase: 5, size: 1 },
+  { x: 4, y: 6, phase: 6, size: 2 },
+  { x: 12, y: 9, phase: 7, size: 2 },
+  { x: -9, y: 12, phase: 8, size: 1 },
+  { x: 0, y: 13, phase: 9, size: 2 }
+];
+const MEMORY_GLOW_OFFSETS = [
+  { x: 0, y: -18, size: 6 },
+  { x: -12, y: -8, size: 5 },
+  { x: 12, y: -8, size: 5 },
+  { x: -16, y: 4, size: 4 },
+  { x: 16, y: 4, size: 4 },
+  { x: -8, y: 16, size: 4 },
+  { x: 8, y: 16, size: 4 }
+];
 // The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
 const BENCH_DRAW_OFFSET = { x: 28, y: 34 };
 const BENCH_DRAW_SIZE = { width: 88, height: 36 };
@@ -1052,33 +1079,118 @@ function drawOceanBench(screenX, screenY) {
   );
 }
 
-function drawFireflies(screenX, screenY, tileX, tileY) {
-  const phase = Math.floor(state.fireflyTime / 260) % 3;
-  const patternIndex = (tileX + tileY) % 3;
+function getFireflySwarmLights(screenX, screenY, tileX, tileY) {
   const centerX = screenX + 24;
-  const centerY = screenY + 18;
-  const patterns = [
-    [
-      { x: -8, y: -4, size: 2, color: "#f5d85f" },
-      { x: 5, y: -1, size: 2, color: "#d4f07d" },
-      { x: -2, y: 6, size: 1, color: "#f9efb4" }
-    ],
-    [
-      { x: -8, y: -4, size: 2, color: "#f9efb4" },
-      { x: 5, y: -1, size: 3, color: "#ffe88c" },
-      { x: -2, y: 6, size: 2, color: "#f5d85f" }
-    ],
-    [
-      { x: -8, y: -4, size: 1, color: "#d4f07d" },
-      { x: 5, y: -1, size: 2, color: "#f9efb4" },
-      { x: -2, y: 6, size: 2, color: "#ffe88c" }
-    ]
-  ];
-  const activePattern = patterns[(phase + patternIndex) % patterns.length];
+  const centerY = screenY + 22;
 
-  // Small offset timing keeps nearby lights from blinking in sync, so the meadow feels naturally alive.
-  for (const light of activePattern) {
-    drawPixelRect(gameContext, centerX + light.x, centerY + light.y, light.size, light.size, light.color);
+  return FIREFLY_SWARM_OFFSETS.map((offset, index) => {
+    // Each light gets its own stagger so one tile feels like a small swarm instead of one blinking dot.
+    const pulse = (Math.floor((state.fireflyTime + (tileX * 91) + (tileY * 57) + (index * 73)) / 170) + offset.phase) % 4;
+    const intensity = [0.4, 0.75, 1, 0.6][pulse];
+    const sizeBoost = intensity > 0.9 ? 1 : 0;
+    const coreColor = pulse === 2 ? "#fff7cf" : pulse === 1 ? "#f7e66f" : "#d8f07a";
+
+    return {
+      x: centerX + offset.x,
+      y: centerY + offset.y,
+      size: offset.size + sizeBoost,
+      intensity,
+      coreColor
+    };
+  });
+}
+
+function drawSoftGlow(x, y, palette, scale = 1) {
+  // A few stacked translucent squares create a pixel-friendly halo that can brighten nearby sprites too.
+  const layers = [
+    { size: Math.round(22 * scale), color: palette[0] },
+    { size: Math.round(14 * scale), color: palette[1] },
+    { size: Math.round(8 * scale), color: palette[2] }
+  ];
+
+  for (const layer of layers) {
+    drawPixelRect(
+      gameContext,
+      Math.round(x - layer.size / 2),
+      Math.round(y - layer.size / 2),
+      layer.size,
+      layer.size,
+      layer.color
+    );
+  }
+}
+
+function drawFireflies(screenX, screenY, tileX, tileY) {
+  const activeLights = getFireflySwarmLights(screenX, screenY, tileX, tileY);
+
+  for (const light of activeLights) {
+    drawPixelRect(
+      gameContext,
+      Math.round(light.x - light.size / 2),
+      Math.round(light.y - light.size / 2),
+      light.size,
+      light.size,
+      light.coreColor
+    );
+  }
+}
+
+function drawFireflyGlow(screenX, screenY, tileX, tileY) {
+  const activeLights = getFireflySwarmLights(screenX, screenY, tileX, tileY);
+
+  gameContext.save();
+  gameContext.globalCompositeOperation = "screen";
+
+  for (const light of activeLights) {
+    drawSoftGlow(light.x, light.y, FIREFLY_GLOW_COLORS, 0.65 + light.intensity * 0.55);
+  }
+
+  gameContext.restore();
+}
+
+function drawMemoryGlow(stop, cameraX, cameraY) {
+  const tileLeft = stop.x * GAME_CONFIG.tileSize + cameraX;
+  const tileTop = stop.y * GAME_CONFIG.tileSize + cameraY;
+  const centerX = tileLeft + GAME_CONFIG.tileSize / 2;
+  const centerY = tileTop + GAME_CONFIG.tileSize / 2;
+  const shimmer = state.sparkleFrame % 3;
+
+  gameContext.save();
+  gameContext.globalCompositeOperation = "screen";
+
+  // The memory glow follows the sparkle animation so it feels like the same magical source of light.
+  for (let index = 0; index < MEMORY_GLOW_OFFSETS.length; index += 1) {
+    const offset = MEMORY_GLOW_OFFSETS[(index + shimmer) % MEMORY_GLOW_OFFSETS.length];
+    const scale = index === 0 ? 1.15 : 0.7 + ((index + shimmer) % 3) * 0.12;
+    drawSoftGlow(centerX + offset.x, centerY + offset.y, MEMORY_GLOW_COLORS, scale);
+  }
+
+  gameContext.restore();
+}
+
+function drawLighting(cameraX, cameraY) {
+  // Lighting is drawn after the night tint so glows brighten the world, props, and nearby cat pixels together.
+  for (let y = 0; y < GAME_CONFIG.mapHeight; y += 1) {
+    for (let x = 0; x < GAME_CONFIG.mapWidth; x += 1) {
+      const screenX = x * GAME_CONFIG.tileSize + cameraX;
+      const screenY = y * GAME_CONFIG.tileSize + cameraY;
+
+      if (screenX <= -GAME_CONFIG.tileSize || screenY <= -GAME_CONFIG.tileSize || screenX >= VIEWPORT_PIXELS || screenY >= VIEWPORT_PIXELS) {
+        continue;
+      }
+
+      if (fireflySet.has(positionKey(x, y))) {
+        drawFireflyGlow(screenX, screenY, x, y);
+      }
+    }
+  }
+
+  for (const stop of GAME_CONFIG.stops) {
+    if (state.completedStopIds.has(stop.id)) {
+      continue;
+    }
+
+    drawMemoryGlow(stop, cameraX, cameraY);
   }
 }
 
@@ -1557,6 +1669,7 @@ function renderGame(timestamp = 0) {
 
   // Applying the tint last lets it darken terrain, props, and characters together without touching the ocean sky.
   drawNightWorldTint(camera.x, camera.y);
+  drawLighting(camera.x, camera.y);
   state.animationFrame = window.requestAnimationFrame(renderGame);
 }
 

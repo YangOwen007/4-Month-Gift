@@ -260,6 +260,7 @@ const characterPreviewWhite = document.querySelector("#character-preview-white")
 const characterPreviewPink = document.querySelector("#character-preview-pink");
 const characterLabelWhite = document.querySelector("#character-label-white");
 const characterLabelPink = document.querySelector("#character-label-pink");
+const backgroundMusic = document.querySelector("#background-music");
 
 const state = {
   player: { ...GAME_CONFIG.start },
@@ -267,6 +268,7 @@ const state = {
   stepPhase: 0,
   selectedCharacterId: "white",
   isCharacterPickerOpen: true,
+  isBackgroundMusicStarted: false,
   completedStopIds: new Set(),
   activeStop: null,
   isDialogOpen: false,
@@ -301,6 +303,27 @@ function getSelectedPartnerId() {
 
 function getSelectedPartnerOption() {
   return PARTNER_OPTIONS[getSelectedPartnerId()] ?? PARTNER_OPTIONS.strawberry;
+}
+
+function startBackgroundMusic() {
+  if (!backgroundMusic || state.isBackgroundMusicStarted) {
+    return;
+  }
+
+  // Starting audio from the character-choice click keeps autoplay-friendly behavior in browsers.
+  backgroundMusic.volume = 0.32;
+  backgroundMusic.currentTime = 0;
+
+  const playPromise = backgroundMusic.play();
+  state.isBackgroundMusicStarted = true;
+
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch((error) => {
+      // If a browser still blocks playback, we log it and allow another interaction to retry later.
+      console.warn("Background music could not start yet.", error);
+      state.isBackgroundMusicStarted = false;
+    });
+  }
 }
 
 async function loadBuildVersion() {
@@ -1687,6 +1710,7 @@ function chooseCharacter(characterId) {
   state.isCharacterPickerOpen = false;
   characterPicker.classList.add("hidden");
   characterPicker.setAttribute("aria-hidden", "true");
+  startBackgroundMusic();
 }
 
 function initializeCharacterPicker() {

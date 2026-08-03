@@ -13,7 +13,7 @@ const GAME_CONFIG = {
     {
       id: "first-stop",
       title: "The Start Of Us",
-      note: "Use this first stop for how it all began. A shorter note feels nice here because it kicks off the whole little walk.",
+      note: "I love all of our dates of course, but our first few hold a special place in my heart. We weren’t officially dating yet, but discovering my love for you was an experience I remember constantly. As we get to know each other even better, my love for you will grow even more!",
       image: "",
       x: 13,
       y: 27,
@@ -22,7 +22,7 @@ const GAME_CONFIG = {
     {
       id: "second-stop",
       title: "One Of My Favorite Days",
-      note: "This stop is a good place for a favorite date, trip, or memory that still feels bright whenever you think about it.",
+      note: "Another time I think about often was senior appreciation - the first time we were really public about our relationship. Something about shouting to the world “I’m hers!” makes me so so happy, in a way I can’t fully describe in words.",
       image: "",
       x: 17,
       y: 20,
@@ -31,7 +31,7 @@ const GAME_CONFIG = {
     {
       id: "third-stop",
       title: "A Quiet Little Moment",
-      note: "This one works especially well for a softer memory: a drive, a walk, a late conversation, or one of those tiny moments that mattered a lot.",
+      note: "Out of all our wonderful memories, some of my favorites were those early mornings, when I’d wake up, open my eyes, and see the love of my life sleeping next to me. You bring so much joy into my life just by existing love, and I can’t wait for the day when I get to wake up next to you again.",
       image: "",
       x: 9,
       y: 13,
@@ -39,8 +39,8 @@ const GAME_CONFIG = {
     },
     {
       id: "fourth-stop",
-      title: "Almost At The View",
-      note: "You can use this memory to build anticipation for the ending and hint that the ocean overlook is almost there.",
+      title: "Almost At The End",
+      note: "Though we’re far away from each other now, I think we’ve only grown closer as a couple. Dealing with the long distance has let me learn so much about you, and have conversations with you that might have happened differently otherwise. Long distance is worth it when it’s with you my love! (but come back soon please)",
       image: "",
       x: 9,
       y: 8,
@@ -112,7 +112,7 @@ function buildPlayerFramePaths(folder, version = PLAYER_FRAME_VERSION) {
 // Both player choices live in one shared config so later partner-swap logic can branch from the same source of truth.
 const CHARACTER_OPTIONS = {
   white: {
-    label: "Original Cat",
+    label: "White Cat",
     preview: `assets/player-cat/down-0.png?v=${PLAYER_FRAME_VERSION}`,
     sit: `assets/ending/cat-sit.png?v=${ENDING_ASSET_VERSION}`,
     playerFrames: buildPlayerFramePaths("assets/player-cat"),
@@ -1273,21 +1273,21 @@ function updateHud() {
   setEditableText(progressText, `${completed} / ${total} memories`);
 
   if (state.endingCutscene.active) {
-    setEditableText(objectiveText, "Enjoy the view.");
+    setEditableText(objectiveText, "Enjoy the fireworks and the view!!");
     return;
   }
 
   if (state.isEndingUnlocked) {
-    setEditableText(objectiveText, "Take in the ocean and enjoy the fireworks.");
+    setEditableText(objectiveText, "Enjoy the fireworks and the view!!");
     return;
   }
 
   if (nextStop) {
-    setEditableText(objectiveText, `Reach "${nextStop.title}" and interact before the route opens.`);
+    setEditableText(objectiveText, `Reach "${nextStop.title}" and interact`);
     return;
   }
 
-  setEditableText(objectiveText, 'Meet the strawberry at the bench and interact.');
+  setEditableText(objectiveText, "Arrive at the surprise");
 }
 
 function getCenteredCameraOrigin() {

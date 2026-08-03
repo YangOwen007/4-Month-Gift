@@ -1051,13 +1051,29 @@ function addEyeHighlights(image) {
         continue;
       }
 
-      const shineX = bestPixel.x;
-      const shineY = bestPixel.y;
-      const shineIndex = (shineY * canvas.width + shineX) * 4;
-      pixels[shineIndex] = 255;
-      pixels[shineIndex + 1] = 255;
-      pixels[shineIndex + 2] = 255;
-      pixels[shineIndex + 3] = 255;
+      const highlightCandidates = [
+        { x: bestPixel.x - 1, y: bestPixel.y - 1 },
+        { x: bestPixel.x, y: bestPixel.y - 1 },
+        { x: bestPixel.x - 1, y: bestPixel.y }
+      ];
+
+      // The catchlight sits just above the eye so the black eye stays visible and the shine reads more clearly.
+      for (const point of highlightCandidates) {
+        if (point.x < 0 || point.x >= canvas.width || point.y < 0 || point.y >= canvas.height) {
+          continue;
+        }
+
+        const highlightIndex = (point.y * canvas.width + point.x) * 4;
+
+        if (isDarkFeaturePixel(highlightIndex)) {
+          continue;
+        }
+
+        pixels[highlightIndex] = 255;
+        pixels[highlightIndex + 1] = 255;
+        pixels[highlightIndex + 2] = 255;
+        pixels[highlightIndex + 3] = 255;
+      }
     }
 
     context.putImageData(imageData, 0, 0);

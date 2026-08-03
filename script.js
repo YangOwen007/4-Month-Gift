@@ -214,6 +214,7 @@ const STRAWBERRY_POSITION = GAME_CONFIG.strawberry;
 const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
+const NIGHT_TINT_COLOR = "rgba(24, 38, 72, 0.26)";
 // The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
 const BENCH_DRAW_OFFSET = { x: 28, y: 34 };
 const BENCH_DRAW_SIZE = { width: 88, height: 36 };
@@ -311,7 +312,7 @@ function startBackgroundMusic() {
   }
 
   // Starting audio from the character-choice click keeps autoplay-friendly behavior in browsers.
-  backgroundMusic.volume = 0.32;
+  backgroundMusic.volume = 0.24;
   backgroundMusic.currentTime = 0;
 
   const playPromise = backgroundMusic.play();
@@ -1277,6 +1278,37 @@ function drawOceanBackdrop() {
   }
 }
 
+function drawNightWorldTint(cameraX, cameraY) {
+  gameContext.save();
+
+  // Tint only the map-driven world tiles so the night sky and ocean backdrop stay bright in the distance.
+  for (let y = 0; y < GAME_CONFIG.mapHeight; y += 1) {
+    for (let x = 0; x < GAME_CONFIG.mapWidth; x += 1) {
+      const terrain = getTerrainType(x, y);
+
+      if (terrain === "o") {
+        continue;
+      }
+
+      const screenX = x * GAME_CONFIG.tileSize + cameraX;
+      const screenY = y * GAME_CONFIG.tileSize + cameraY;
+
+      if (
+        screenX <= -GAME_CONFIG.tileSize ||
+        screenY <= -GAME_CONFIG.tileSize ||
+        screenX >= VIEWPORT_PIXELS ||
+        screenY >= VIEWPORT_PIXELS
+      ) {
+        continue;
+      }
+
+      drawPixelRect(gameContext, screenX, screenY, GAME_CONFIG.tileSize, GAME_CONFIG.tileSize, NIGHT_TINT_COLOR);
+    }
+  }
+
+  gameContext.restore();
+}
+
 function getPathNeighbors(x, y) {
   return {
     up: PATH_TILES.has(positionKey(x, y - 1)),
@@ -1479,6 +1511,9 @@ function renderGame(timestamp = 0) {
   }
 
   drawPlayer();
+
+  // Applying the tint last lets it darken terrain, props, and characters together without touching the ocean sky.
+  drawNightWorldTint(camera.x, camera.y);
   state.animationFrame = window.requestAnimationFrame(renderGame);
 }
 

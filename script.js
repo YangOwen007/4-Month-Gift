@@ -228,16 +228,11 @@ const NIGHT_TINT_COLOR = "rgba(16, 28, 58, 0.36)";
 const MEMORY_GLOW_COLORS = ["rgba(255, 233, 138, 0.18)", "rgba(255, 201, 98, 0.22)", "rgba(255, 247, 204, 0.28)"];
 const FIREFLY_GLOW_COLORS = ["rgba(228, 247, 136, 0.12)", "rgba(255, 239, 171, 0.18)", "rgba(255, 247, 214, 0.24)"];
 const FIREFLY_SWARM_OFFSETS = [
-  { x: -12, y: -10, phase: 0, size: 2 },
-  { x: -4, y: -12, phase: 1, size: 2 },
-  { x: 7, y: -9, phase: 2, size: 2 },
-  { x: 13, y: -3, phase: 3, size: 1 },
-  { x: -14, y: 1, phase: 4, size: 2 },
-  { x: -5, y: 4, phase: 5, size: 1 },
-  { x: 4, y: 6, phase: 6, size: 2 },
-  { x: 12, y: 9, phase: 7, size: 2 },
-  { x: -9, y: 12, phase: 8, size: 1 },
-  { x: 0, y: 13, phase: 9, size: 2 }
+  { x: -11, y: -9, phase: 0, size: 2 },
+  { x: 7, y: -10, phase: 2, size: 2 },
+  { x: -13, y: 4, phase: 4, size: 2 },
+  { x: 10, y: 6, phase: 6, size: 2 },
+  { x: -2, y: 12, phase: 8, size: 2 }
 ];
 const MEMORY_GLOW_OFFSETS = [
   { x: 0, y: -18, size: 6 },
@@ -247,6 +242,13 @@ const MEMORY_GLOW_OFFSETS = [
   { x: 16, y: 4, size: 4 },
   { x: -8, y: 16, size: 4 },
   { x: 8, y: 16, size: 4 }
+];
+const CANDLE_GLOW_COLORS = ["rgba(255, 231, 156, 0.1)", "rgba(255, 198, 106, 0.16)", "rgba(255, 247, 222, 0.24)"];
+const CANDLE_HEART_OFFSETS = [
+  { x: -74, y: 16 }, { x: -58, y: -2 }, { x: -42, y: -18 }, { x: -24, y: -30 },
+  { x: -6, y: -36 }, { x: 10, y: -30 }, { x: 28, y: -18 }, { x: 44, y: -2 },
+  { x: 60, y: 16 }, { x: 42, y: 34 }, { x: 26, y: 52 }, { x: 10, y: 68 },
+  { x: -6, y: 84 }, { x: -22, y: 68 }, { x: -38, y: 52 }, { x: -54, y: 34 }
 ];
 // The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
 const BENCH_DRAW_OFFSET = { x: 28, y: 34 };
@@ -426,7 +428,8 @@ const stopByPosition = new Map(GAME_CONFIG.stops.map((stop) => [positionKey(stop
 const treeSet = new Set(TREE_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const bushSet = new Set(BUSH_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const rockSet = new Set(ROCK_POSITIONS.map((item) => positionKey(item.x, item.y)));
-const fireflySet = new Set(FIREFLY_POSITIONS.map((item) => positionKey(item.x, item.y)));
+const fireflyTiles = FIREFLY_POSITIONS.filter((item) => !PATH_TILES.has(positionKey(item.x, item.y)));
+const fireflySet = new Set(fireflyTiles.map((item) => positionKey(item.x, item.y)));
 
 function getTerrainType(x, y) {
   if (PATH_TILES.has(positionKey(x, y))) {
@@ -1140,17 +1143,64 @@ function drawFireflies(screenX, screenY, tileX, tileY) {
 }
 
 function drawFireflyGlow(screenX, screenY, tileX, tileY) {
-  const centerX = screenX + 24;
-  const centerY = screenY + 22;
-  const pulse = (Math.floor((state.fireflyTime + (tileX * 91) + (tileY * 57)) / 220)) % 4;
-  const scale = [1.35, 1.55, 1.75, 1.48][pulse];
+  const activeLights = getFireflySwarmLights(screenX, screenY, tileX, tileY);
 
   lightContext.save();
-  // Each firefly tile now emits one shared halo, so the swarm reads as a cluster instead of a smeared glow cloud.
+  // Each bug gets its own tiny wick-like halo again, but the reduced count keeps the tile from turning into fog.
   lightContext.globalCompositeOperation = "lighten";
-  drawSoftGlow(lightContext, centerX, centerY, FIREFLY_GLOW_COLORS, scale);
+
+  for (const light of activeLights) {
+    const glowScale = 0.52 + light.intensity * 0.26;
+    drawSoftGlow(lightContext, light.x, light.y, FIREFLY_GLOW_COLORS, glowScale);
+  }
 
   lightContext.restore();
+}
+
+function drawCandle(screenX, screenY) {
+  // These tiny candles stay simple so the heart silhouette reads first and the warm lights read second.
+  drawPixelRect(gameContext, screenX - 2, screenY - 3, 4, 7, "#f2e6c4");
+  drawPixelRect(gameContext, screenX - 1, screenY - 2, 2, 5, "#e8d4a6");
+  drawPixelRect(gameContext, screenX, screenY - 4, 1, 1, "#5d3a1d");
+  drawPixelRect(gameContext, screenX - 1, screenY - 5, 3, 3, "#ffc963");
+  drawPixelRect(gameContext, screenX, screenY - 6, 1, 1, "#fff7cf");
+}
+
+function drawCandleGlow(screenX, screenY) {
+  lightContext.save();
+  lightContext.globalCompositeOperation = "lighten";
+  drawSoftGlow(lightContext, screenX, screenY - 4, CANDLE_GLOW_COLORS, 0.74);
+  lightContext.restore();
+}
+
+function getCandleHeartPositions(cameraX, cameraY) {
+  const benchScreenX = BENCH_POSITION.x * GAME_CONFIG.tileSize + cameraX + BENCH_DRAW_OFFSET.x;
+  const benchScreenY = BENCH_POSITION.y * GAME_CONFIG.tileSize + cameraY + BENCH_DRAW_OFFSET.y;
+  const centerX = benchScreenX + BENCH_DRAW_SIZE.width / 2;
+  const centerY = benchScreenY + 6;
+
+  return CANDLE_HEART_OFFSETS.map((offset) => ({
+    x: Math.round(centerX + offset.x),
+    y: Math.round(centerY + offset.y)
+  }));
+}
+
+function drawEndingCandleHeart(cameraX, cameraY) {
+  if (!state.endingCutscene.active || getSelectedPartnerId() !== "blue") {
+    return;
+  }
+
+  const actorState = getEndingActorState();
+  if (!actorState.isSeated) {
+    return;
+  }
+
+  const candles = getCandleHeartPositions(cameraX, cameraY);
+
+  // The candle heart only appears for the blue-nubcat ending and frames the whole bench scene once they sit down.
+  for (const candle of candles) {
+    drawCandle(candle.x, candle.y);
+  }
 }
 
 function drawMemoryGlow(stop, cameraX, cameraY) {
@@ -1199,6 +1249,13 @@ function drawLighting(cameraX, cameraY) {
     }
 
     drawMemoryGlow(stop, cameraX, cameraY);
+  }
+
+  if (state.endingCutscene.active && getSelectedPartnerId() === "blue" && getEndingActorState().isSeated) {
+    // Candle halos are spaced out around the bench, so the older wick glow style can stay readable and romantic.
+    for (const candle of getCandleHeartPositions(cameraX, cameraY)) {
+      drawCandleGlow(candle.x, candle.y);
+    }
   }
 
   gameContext.save();
@@ -1673,6 +1730,7 @@ function renderGame(timestamp = 0) {
   }
 
   if (state.endingCutscene.active) {
+    drawEndingCandleHeart(camera.x, camera.y);
     drawEndingActors(camera.x, camera.y);
     drawEndingBenchOverlay(camera.x, camera.y);
     drawEndingHearts(camera.x, camera.y);

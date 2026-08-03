@@ -73,7 +73,7 @@ const GAME_CONFIG = {
 
 // Versioned character URLs keep GitHub Pages and the browser from reusing older sprite exports.
 const PLAYER_FRAME_VERSION = "20260802-character-picker-4";
-const PARTNER_FRAME_VERSION = "20260803-blue-partner-1";
+const PARTNER_FRAME_VERSION = "20260803-blue-partner-2";
 const ENDING_ASSET_VERSION = "20260802-ending-seat-1";
 
 GAME_CONFIG.assets.bench = `assets/ending/bench-double.png?v=${ENDING_ASSET_VERSION}`;

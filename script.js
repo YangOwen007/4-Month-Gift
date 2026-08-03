@@ -73,6 +73,7 @@ const GAME_CONFIG = {
 
 // Versioned character URLs keep GitHub Pages and the browser from reusing older sprite exports.
 const PLAYER_FRAME_VERSION = "20260802-character-picker-4";
+const PARTNER_FRAME_VERSION = "20260803-blue-partner-1";
 const ENDING_ASSET_VERSION = "20260802-ending-seat-1";
 
 GAME_CONFIG.assets.bench = `assets/ending/bench-double.png?v=${ENDING_ASSET_VERSION}`;
@@ -87,23 +88,23 @@ GAME_CONFIG.assets.hearts = Array.from(
   (_, index) => `assets/ending/heart-${index}.png?v=${ENDING_ASSET_VERSION}`
 );
 
-function buildPlayerFramePaths(folder) {
+function buildPlayerFramePaths(folder, version = PLAYER_FRAME_VERSION) {
   return {
     down: [
-      `${folder}/down-0.png?v=${PLAYER_FRAME_VERSION}`,
-      `${folder}/down-1.png?v=${PLAYER_FRAME_VERSION}`
+      `${folder}/down-0.png?v=${version}`,
+      `${folder}/down-1.png?v=${version}`
     ],
     left: [
-      `${folder}/left-0.png?v=${PLAYER_FRAME_VERSION}`,
-      `${folder}/left-1.png?v=${PLAYER_FRAME_VERSION}`
+      `${folder}/left-0.png?v=${version}`,
+      `${folder}/left-1.png?v=${version}`
     ],
     up: [
-      `${folder}/up-0.png?v=${PLAYER_FRAME_VERSION}`,
-      `${folder}/up-1.png?v=${PLAYER_FRAME_VERSION}`
+      `${folder}/up-0.png?v=${version}`,
+      `${folder}/up-1.png?v=${version}`
     ],
     right: [
-      `${folder}/right-0.png?v=${PLAYER_FRAME_VERSION}`,
-      `${folder}/right-1.png?v=${PLAYER_FRAME_VERSION}`
+      `${folder}/right-0.png?v=${version}`,
+      `${folder}/right-1.png?v=${version}`
     ]
   };
 }
@@ -125,6 +126,22 @@ const CHARACTER_OPTIONS = {
     playerFrames: buildPlayerFramePaths("assets/player-pink-v4"),
     worldDraw: { width: 48, height: 48, offsetX: 0, offsetY: 0 },
     seatedDraw: { width: 42, height: 42, offsetX: 0, offsetY: -1 }
+  }
+};
+
+// The pink route gets its own matching partner, while the original route keeps the strawberry ending intact.
+const PARTNER_OPTIONS = {
+  strawberry: {
+    type: "simple",
+    draw: { width: 36, height: 36, offsetX: 0, offsetY: 0 },
+    seatedDraw: { width: 30, height: 32, offsetX: 0, offsetY: -2 }
+  },
+  blue: {
+    type: "directional",
+    sit: `assets/ending/blue-nubcat-sit-v1.png?v=${PARTNER_FRAME_VERSION}`,
+    playerFrames: buildPlayerFramePaths("assets/partner-blue-v1", PARTNER_FRAME_VERSION),
+    draw: { width: 48, height: 48, offsetX: 0, offsetY: 0 },
+    seatedDraw: { width: 40, height: 40, offsetX: 0, offsetY: -1 }
   }
 };
 
@@ -276,6 +293,14 @@ const state = {
 
 function getSelectedCharacterOption() {
   return CHARACTER_OPTIONS[state.selectedCharacterId] ?? CHARACTER_OPTIONS.white;
+}
+
+function getSelectedPartnerId() {
+  return state.selectedCharacterId === "pink" ? "blue" : "strawberry";
+}
+
+function getSelectedPartnerOption() {
+  return PARTNER_OPTIONS[getSelectedPartnerId()] ?? PARTNER_OPTIONS.strawberry;
 }
 
 async function loadBuildVersion() {
@@ -749,6 +774,23 @@ async function loadCharacterAssets(characterOption) {
   };
 }
 
+async function loadDirectionalPartnerAssets(partnerOption) {
+  const [sitImage, ...partnerFrameImages] = await Promise.all([
+    loadImage(partnerOption.sit),
+    ...Object.values(partnerOption.playerFrames).flat().map((path) => loadImage(path))
+  ]);
+
+  return {
+    sit: trimTransparentSprite(sitImage),
+    playerFrames: {
+      down: partnerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)),
+      left: partnerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)),
+      up: partnerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)),
+      right: partnerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image))
+    }
+  };
+}
+
 async function loadAssets() {
   const [
     grassImage,
@@ -794,6 +836,17 @@ async function loadAssets() {
     )
   );
 
+  const partners = Object.fromEntries(
+    await Promise.all(
+      Object.entries(PARTNER_OPTIONS)
+        .filter(([, partnerOption]) => partnerOption.type === "directional")
+        .map(async ([partnerId, partnerOption]) => {
+          const partnerAssets = await loadDirectionalPartnerAssets(partnerOption);
+          return [partnerId, partnerAssets];
+        })
+    )
+  );
+
   return {
     grass: createTileCanvas(grassImage),
     stone: createTileCanvas(stoneImage, { healSeams: true, threshold: 745 }),
@@ -810,6 +863,7 @@ async function loadAssets() {
     strawberrySit: trimTransparentSprite(strawberrySitImage),
     heartFrames: [heart0Image, heart1Image, heart2Image].map((image) => trimTransparentSprite(image)),
     characters,
+    partners,
     sparkleFrames: createSparkleFrames()
   };
 }
@@ -875,6 +929,10 @@ function getEndingActorState() {
 
 function getSelectedCharacterAssets() {
   return state.assets?.characters?.[state.selectedCharacterId] ?? state.assets?.characters?.white;
+}
+
+function getSelectedPartnerAssets() {
+  return state.assets?.partners?.[getSelectedPartnerId()] ?? null;
 }
 
 function updateHud() {
@@ -1028,14 +1086,34 @@ function drawBench(screenX, screenY) {
   drawOceanBench(screenX, screenY);
 }
 
-function drawIdleStrawberry(screenX, screenY) {
-  const frame = state.assets.strawberryWalk[Math.floor(state.lastTimestamp / 260) % state.assets.strawberryWalk.length];
+function drawIdlePartner(screenX, screenY) {
+  const selectedPartnerId = getSelectedPartnerId();
+  const selectedPartnerOption = getSelectedPartnerOption();
+
+  if (selectedPartnerId === "strawberry") {
+    const frame = state.assets.strawberryWalk[Math.floor(state.lastTimestamp / 260) % state.assets.strawberryWalk.length];
+    gameContext.drawImage(
+      frame,
+      screenX + 7,
+      screenY + 7,
+      STRAWBERRY_DRAW_SIZE.width,
+      STRAWBERRY_DRAW_SIZE.height
+    );
+    return;
+  }
+
+  const selectedPartnerAssets = getSelectedPartnerAssets();
+  const frame = selectedPartnerAssets?.playerFrames?.down?.[Math.floor(state.lastTimestamp / 260) % 2];
+  if (!frame) {
+    return;
+  }
+
   gameContext.drawImage(
     frame,
-    screenX + 7,
-    screenY + 7,
-    STRAWBERRY_DRAW_SIZE.width,
-    STRAWBERRY_DRAW_SIZE.height
+    screenX + (GAME_CONFIG.tileSize - selectedPartnerOption.draw.width) / 2 + selectedPartnerOption.draw.offsetX,
+    screenY + (GAME_CONFIG.tileSize - selectedPartnerOption.draw.height) / 2 + selectedPartnerOption.draw.offsetY,
+    selectedPartnerOption.draw.width,
+    selectedPartnerOption.draw.height
   );
 }
 
@@ -1092,12 +1170,19 @@ function drawEndingActors(cameraX, cameraY) {
   const actorState = getEndingActorState();
   const selectedCharacterAssets = getSelectedCharacterAssets();
   const selectedCharacterOption = getSelectedCharacterOption();
+  const selectedPartnerAssets = getSelectedPartnerAssets();
+  const selectedPartnerId = getSelectedPartnerId();
+  const selectedPartnerOption = getSelectedPartnerOption();
   const catFrame = actorState.isSeated
     ? selectedCharacterAssets?.sit
     : selectedCharacterAssets?.playerFrames?.[actorState.cat.facing]?.[actorState.cat.stepPhase];
-  const strawberryFrame = actorState.isSeated
-    ? state.assets.strawberrySit
-    : state.assets.strawberryWalk[actorState.strawberry.stepPhase];
+  const partnerFrame = selectedPartnerId === "strawberry"
+    ? (actorState.isSeated
+        ? state.assets.strawberrySit
+        : state.assets.strawberryWalk[actorState.strawberry.stepPhase])
+    : (actorState.isSeated
+        ? selectedPartnerAssets?.sit
+        : selectedPartnerAssets?.playerFrames?.[actorState.strawberry.facing]?.[actorState.strawberry.stepPhase]);
 
   // While moving, both characters use standing poses; once seated we swap into dedicated bench sprites.
   if (actorState.isSeated) {
@@ -1113,15 +1198,15 @@ function drawEndingActors(cameraX, cameraY) {
       selectedCharacterOption.seatedDraw.offsetY
     );
     drawWorldSprite(
-      strawberryFrame,
+      partnerFrame,
       actorState.strawberry.x,
       actorState.strawberry.y,
-      SEATED_STRAWBERRY_DRAW_SIZE.width,
-      SEATED_STRAWBERRY_DRAW_SIZE.height,
+      selectedPartnerOption.seatedDraw.width,
+      selectedPartnerOption.seatedDraw.height,
       cameraX,
       cameraY,
-      SEATED_STRAWBERRY_DRAW_OFFSET.x,
-      SEATED_STRAWBERRY_DRAW_OFFSET.y
+      selectedPartnerOption.seatedDraw.offsetX,
+      selectedPartnerOption.seatedDraw.offsetY
     );
   } else {
     drawWorldSprite(
@@ -1135,7 +1220,17 @@ function drawEndingActors(cameraX, cameraY) {
       selectedCharacterOption.worldDraw.offsetX,
       selectedCharacterOption.worldDraw.offsetY
     );
-    drawWorldSprite(strawberryFrame, actorState.strawberry.x, actorState.strawberry.y, 36, 36, cameraX, cameraY);
+    drawWorldSprite(
+      partnerFrame,
+      actorState.strawberry.x,
+      actorState.strawberry.y,
+      selectedPartnerOption.draw.width,
+      selectedPartnerOption.draw.height,
+      cameraX,
+      cameraY,
+      selectedPartnerOption.draw.offsetX,
+      selectedPartnerOption.draw.offsetY
+    );
   }
 }
 
@@ -1276,7 +1371,7 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
   }
 
   if (!state.endingCutscene.active && tileX === STRAWBERRY_POSITION.x && tileY === STRAWBERRY_POSITION.y) {
-    drawIdleStrawberry(screenX, screenY);
+    drawIdlePartner(screenX, screenY);
   }
 
   if (treeSet.has(tileKey)) {

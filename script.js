@@ -1140,15 +1140,15 @@ function drawFireflies(screenX, screenY, tileX, tileY) {
 }
 
 function drawFireflyGlow(screenX, screenY, tileX, tileY) {
-  const activeLights = getFireflySwarmLights(screenX, screenY, tileX, tileY);
+  const centerX = screenX + 24;
+  const centerY = screenY + 22;
+  const pulse = (Math.floor((state.fireflyTime + (tileX * 91) + (tileY * 57)) / 220)) % 4;
+  const scale = [1.35, 1.55, 1.75, 1.48][pulse];
 
   lightContext.save();
-  // The light map merges swarm glows together here first, so they stop compounding on the final scene.
+  // Each firefly tile now emits one shared halo, so the swarm reads as a cluster instead of a smeared glow cloud.
   lightContext.globalCompositeOperation = "lighten";
-
-  for (const light of activeLights) {
-    drawSoftGlow(lightContext, light.x, light.y, FIREFLY_GLOW_COLORS, 0.65 + light.intensity * 0.55);
-  }
+  drawSoftGlow(lightContext, centerX, centerY, FIREFLY_GLOW_COLORS, scale);
 
   lightContext.restore();
 }
@@ -1159,17 +1159,16 @@ function drawMemoryGlow(stop, cameraX, cameraY) {
   const centerX = tileLeft + GAME_CONFIG.tileSize / 2;
   const centerY = tileTop + GAME_CONFIG.tileSize / 2;
   const shimmer = state.sparkleFrame % 3;
+  const offset = [
+    { x: 0, y: -2, scale: 1.65 },
+    { x: 2, y: 0, scale: 1.82 },
+    { x: -2, y: 1, scale: 1.72 }
+  ][shimmer];
 
   lightContext.save();
-  // Memory glows join the same offscreen light map, which keeps every glow source from double-brightening.
+  // The memory sparkle also uses one halo source so the larger marker stays crisp instead of blooming into fog.
   lightContext.globalCompositeOperation = "lighten";
-
-  // The memory glow follows the sparkle animation so it feels like the same magical source of light.
-  for (let index = 0; index < MEMORY_GLOW_OFFSETS.length; index += 1) {
-    const offset = MEMORY_GLOW_OFFSETS[(index + shimmer) % MEMORY_GLOW_OFFSETS.length];
-    const scale = index === 0 ? 1.15 : 0.7 + ((index + shimmer) % 3) * 0.12;
-    drawSoftGlow(lightContext, centerX + offset.x, centerY + offset.y, MEMORY_GLOW_COLORS, scale);
-  }
+  drawSoftGlow(lightContext, centerX + offset.x, centerY + offset.y, MEMORY_GLOW_COLORS, offset.scale);
 
   lightContext.restore();
 }

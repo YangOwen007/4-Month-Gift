@@ -196,6 +196,12 @@ const ROCK_POSITIONS = [
   { x: 18, y: 20 }, { x: 10, y: 6 }, { x: 16, y: 6 }
 ];
 
+// Fireflies live in calmer corners of the map so they read as atmosphere instead of gameplay markers.
+const FIREFLY_POSITIONS = [
+  { x: 7, y: 30 }, { x: 18, y: 29 }, { x: 20, y: 24 }, { x: 6, y: 21 },
+  { x: 19, y: 16 }, { x: 7, y: 12 }, { x: 18, y: 9 }, { x: 11, y: 7 }
+];
+
 const PATH_SEGMENTS = [
   [{ x: 13, y: 31 }, { x: 13, y: 27 }],
   [{ x: 13, y: 27 }, { x: 17, y: 27 }],
@@ -214,7 +220,7 @@ const STRAWBERRY_POSITION = GAME_CONFIG.strawberry;
 const TREE_DRAW_OFFSET = { x: 8, y: 2 };
 const BUSH_DRAW_OFFSET = { x: 8, y: 22 };
 const LAND_BASE_COLOR = "#8fc84a";
-const NIGHT_TINT_COLOR = "rgba(24, 38, 72, 0.26)";
+const NIGHT_TINT_COLOR = "rgba(16, 28, 58, 0.36)";
 // The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
 const BENCH_DRAW_OFFSET = { x: 28, y: 34 };
 const BENCH_DRAW_SIZE = { width: 88, height: 36 };
@@ -277,6 +283,7 @@ const state = {
   isFireworksRunning: false,
   sparkleFrame: 0,
   sparkleTime: 0,
+  fireflyTime: 0,
   fireworks: [],
   fireworkTimer: null,
   fireworkLastTimestamp: 0,
@@ -388,6 +395,7 @@ const stopByPosition = new Map(GAME_CONFIG.stops.map((stop) => [positionKey(stop
 const treeSet = new Set(TREE_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const bushSet = new Set(BUSH_POSITIONS.map((item) => positionKey(item.x, item.y)));
 const rockSet = new Set(ROCK_POSITIONS.map((item) => positionKey(item.x, item.y)));
+const fireflySet = new Set(FIREFLY_POSITIONS.map((item) => positionKey(item.x, item.y)));
 
 function getTerrainType(x, y) {
   if (PATH_TILES.has(positionKey(x, y))) {
@@ -1044,6 +1052,36 @@ function drawOceanBench(screenX, screenY) {
   );
 }
 
+function drawFireflies(screenX, screenY, tileX, tileY) {
+  const phase = Math.floor(state.fireflyTime / 260) % 3;
+  const patternIndex = (tileX + tileY) % 3;
+  const centerX = screenX + 24;
+  const centerY = screenY + 18;
+  const patterns = [
+    [
+      { x: -8, y: -4, size: 2, color: "#f5d85f" },
+      { x: 5, y: -1, size: 2, color: "#d4f07d" },
+      { x: -2, y: 6, size: 1, color: "#f9efb4" }
+    ],
+    [
+      { x: -8, y: -4, size: 2, color: "#f9efb4" },
+      { x: 5, y: -1, size: 3, color: "#ffe88c" },
+      { x: -2, y: 6, size: 2, color: "#f5d85f" }
+    ],
+    [
+      { x: -8, y: -4, size: 1, color: "#d4f07d" },
+      { x: 5, y: -1, size: 2, color: "#f9efb4" },
+      { x: -2, y: 6, size: 2, color: "#ffe88c" }
+    ]
+  ];
+  const activePattern = patterns[(phase + patternIndex) % patterns.length];
+
+  // Small offset timing keeps nearby lights from blinking in sync, so the meadow feels naturally alive.
+  for (const light of activePattern) {
+    drawPixelRect(gameContext, centerX + light.x, centerY + light.y, light.size, light.size, light.color);
+  }
+}
+
 function drawTextureTile(image, screenX, screenY, tileX, tileY) {
   gameContext.drawImage(image, screenX, screenY);
 }
@@ -1413,6 +1451,10 @@ function drawDecor(tileX, tileY, cameraX, cameraY) {
   const screenY = tileY * GAME_CONFIG.tileSize + cameraY;
   const tileKey = positionKey(tileX, tileY);
 
+  if (fireflySet.has(tileKey)) {
+    drawFireflies(screenX, screenY, tileX, tileY);
+  }
+
   if (bushSet.has(tileKey)) {
     drawStyledBush(screenX, screenY);
   }
@@ -1465,6 +1507,7 @@ function renderGame(timestamp = 0) {
   const delta = state.lastTimestamp === 0 ? 16 : timestamp - state.lastTimestamp;
   state.lastTimestamp = timestamp;
   state.sparkleTime += delta;
+  state.fireflyTime += delta;
 
   if (state.sparkleTime >= 400) {
     state.sparkleFrame = (state.sparkleFrame + 1) % state.assets.sparkleFrames.length;

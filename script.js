@@ -245,10 +245,11 @@ const MEMORY_GLOW_OFFSETS = [
 ];
 const CANDLE_GLOW_COLORS = ["rgba(255, 231, 156, 0.1)", "rgba(255, 198, 106, 0.16)", "rgba(255, 247, 222, 0.24)"];
 const CANDLE_HEART_OFFSETS = [
-  { x: -74, y: 16 }, { x: -58, y: -2 }, { x: -42, y: -18 }, { x: -24, y: -30 },
-  { x: -6, y: -36 }, { x: 10, y: -30 }, { x: 28, y: -18 }, { x: 44, y: -2 },
-  { x: 60, y: 16 }, { x: 42, y: 34 }, { x: 26, y: 52 }, { x: 10, y: 68 },
-  { x: -6, y: 84 }, { x: -22, y: 68 }, { x: -38, y: 52 }, { x: -54, y: 34 }
+  { x: -62, y: 30 }, { x: -54, y: 10 }, { x: -44, y: -8 }, { x: -30, y: -24 },
+  { x: -14, y: -34 }, { x: 0, y: -30 }, { x: 14, y: -34 }, { x: 30, y: -24 },
+  { x: 44, y: -8 }, { x: 54, y: 10 }, { x: 62, y: 30 }, { x: 50, y: 48 },
+  { x: 36, y: 62 }, { x: 22, y: 76 }, { x: 8, y: 90 }, { x: 0, y: 100 },
+  { x: -8, y: 90 }, { x: -22, y: 76 }, { x: -36, y: 62 }, { x: -50, y: 48 }
 ];
 // The bench gets a visual nudge so it sits more centrally on the overlook without changing its logic tile.
 const BENCH_DRAW_OFFSET = { x: 28, y: 34 };
@@ -1086,11 +1087,38 @@ function drawOceanBench(screenX, screenY) {
   );
 }
 
+function transformSwarmOffset(offset, variant) {
+  // Rotating and mirroring the same five offsets gives each tile its own silhouette without changing the art style.
+  const mirroredX = variant.mirrorX ? -offset.x : offset.x;
+  const mirroredY = variant.mirrorY ? -offset.y : offset.y;
+
+  if (variant.rotation === 1) {
+    return { x: -mirroredY, y: mirroredX };
+  }
+
+  if (variant.rotation === 2) {
+    return { x: -mirroredX, y: -mirroredY };
+  }
+
+  if (variant.rotation === 3) {
+    return { x: mirroredY, y: -mirroredX };
+  }
+
+  return { x: mirroredX, y: mirroredY };
+}
+
 function getFireflySwarmLights(screenX, screenY, tileX, tileY) {
   const centerX = screenX + 24;
   const centerY = screenY + 22;
+  const variant = {
+    rotation: (tileX + tileY) % 4,
+    mirrorX: tileX % 2 === 0,
+    mirrorY: tileY % 2 === 1
+  };
 
   return FIREFLY_SWARM_OFFSETS.map((offset, index) => {
+    const transformed = transformSwarmOffset(offset, variant);
+
     // Each light gets its own stagger so one tile feels like a small swarm instead of one blinking dot.
     const pulse = (Math.floor((state.fireflyTime + (tileX * 91) + (tileY * 57) + (index * 73)) / 170) + offset.phase) % 4;
     const intensity = [0.4, 0.75, 1, 0.6][pulse];
@@ -1098,8 +1126,8 @@ function getFireflySwarmLights(screenX, screenY, tileX, tileY) {
     const coreColor = pulse === 2 ? "#fff7cf" : pulse === 1 ? "#f7e66f" : "#d8f07a";
 
     return {
-      x: centerX + offset.x,
-      y: centerY + offset.y,
+      x: centerX + transformed.x,
+      y: centerY + transformed.y,
       size: offset.size + sizeBoost,
       intensity,
       coreColor
@@ -1177,7 +1205,7 @@ function getCandleHeartPositions(cameraX, cameraY) {
   const benchScreenX = BENCH_POSITION.x * GAME_CONFIG.tileSize + cameraX + BENCH_DRAW_OFFSET.x;
   const benchScreenY = BENCH_POSITION.y * GAME_CONFIG.tileSize + cameraY + BENCH_DRAW_OFFSET.y;
   const centerX = benchScreenX + BENCH_DRAW_SIZE.width / 2;
-  const centerY = benchScreenY + 6;
+  const centerY = benchScreenY - 8;
 
   return CANDLE_HEART_OFFSETS.map((offset) => ({
     x: Math.round(centerX + offset.x),
@@ -1186,18 +1214,13 @@ function getCandleHeartPositions(cameraX, cameraY) {
 }
 
 function drawEndingCandleHeart(cameraX, cameraY) {
-  if (!state.endingCutscene.active || getSelectedPartnerId() !== "blue") {
-    return;
-  }
-
-  const actorState = getEndingActorState();
-  if (!actorState.isSeated) {
+  if (getSelectedPartnerId() !== "blue") {
     return;
   }
 
   const candles = getCandleHeartPositions(cameraX, cameraY);
 
-  // The candle heart only appears for the blue-nubcat ending and frames the whole bench scene once they sit down.
+  // The candle heart is a permanent overlook decoration for the blue-nubcat route, not just a finale pop-in.
   for (const candle of candles) {
     drawCandle(candle.x, candle.y);
   }
@@ -1251,8 +1274,8 @@ function drawLighting(cameraX, cameraY) {
     drawMemoryGlow(stop, cameraX, cameraY);
   }
 
-  if (state.endingCutscene.active && getSelectedPartnerId() === "blue" && getEndingActorState().isSeated) {
-    // Candle halos are spaced out around the bench, so the older wick glow style can stay readable and romantic.
+  if (getSelectedPartnerId() === "blue") {
+    // The candle installation keeps its own individual wick glows, and the spacing keeps them from bleeding together.
     for (const candle of getCandleHeartPositions(cameraX, cameraY)) {
       drawCandleGlow(candle.x, candle.y);
     }

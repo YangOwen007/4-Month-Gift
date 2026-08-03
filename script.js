@@ -277,6 +277,10 @@ const gameCanvas = document.querySelector("#game-canvas");
 const gameContext = gameCanvas.getContext("2d");
 const fireworksCanvas = document.querySelector("#fireworks-canvas");
 const fireworksContext = fireworksCanvas.getContext("2d");
+const lightCanvas = document.createElement("canvas");
+lightCanvas.width = VIEWPORT_PIXELS;
+lightCanvas.height = VIEWPORT_PIXELS;
+const lightContext = lightCanvas.getContext("2d");
 const objectiveText = document.querySelector("#objective-text");
 const progressText = document.querySelector("#progress-text");
 const buildVersionText = document.querySelector("#build-version");
@@ -1100,7 +1104,7 @@ function getFireflySwarmLights(screenX, screenY, tileX, tileY) {
   });
 }
 
-function drawSoftGlow(x, y, palette, scale = 1) {
+function drawSoftGlow(context, x, y, palette, scale = 1) {
   // A few stacked translucent squares create a pixel-friendly halo that can brighten nearby sprites too.
   const layers = [
     { size: Math.round(22 * scale), color: palette[0] },
@@ -1110,7 +1114,7 @@ function drawSoftGlow(x, y, palette, scale = 1) {
 
   for (const layer of layers) {
     drawPixelRect(
-      gameContext,
+      context,
       Math.round(x - layer.size / 2),
       Math.round(y - layer.size / 2),
       layer.size,
@@ -1138,15 +1142,15 @@ function drawFireflies(screenX, screenY, tileX, tileY) {
 function drawFireflyGlow(screenX, screenY, tileX, tileY) {
   const activeLights = getFireflySwarmLights(screenX, screenY, tileX, tileY);
 
-  gameContext.save();
-  // `lighten` keeps overlapping glow areas from stacking brighter and brighter on top of each other.
-  gameContext.globalCompositeOperation = "lighten";
+  lightContext.save();
+  // The light map merges swarm glows together here first, so they stop compounding on the final scene.
+  lightContext.globalCompositeOperation = "lighten";
 
   for (const light of activeLights) {
-    drawSoftGlow(light.x, light.y, FIREFLY_GLOW_COLORS, 0.65 + light.intensity * 0.55);
+    drawSoftGlow(lightContext, light.x, light.y, FIREFLY_GLOW_COLORS, 0.65 + light.intensity * 0.55);
   }
 
-  gameContext.restore();
+  lightContext.restore();
 }
 
 function drawMemoryGlow(stop, cameraX, cameraY) {
@@ -1156,21 +1160,24 @@ function drawMemoryGlow(stop, cameraX, cameraY) {
   const centerY = tileTop + GAME_CONFIG.tileSize / 2;
   const shimmer = state.sparkleFrame % 3;
 
-  gameContext.save();
-  // Memories use the same non-stacking blend mode so nearby light sources stay soft instead of compounding.
-  gameContext.globalCompositeOperation = "lighten";
+  lightContext.save();
+  // Memory glows join the same offscreen light map, which keeps every glow source from double-brightening.
+  lightContext.globalCompositeOperation = "lighten";
 
   // The memory glow follows the sparkle animation so it feels like the same magical source of light.
   for (let index = 0; index < MEMORY_GLOW_OFFSETS.length; index += 1) {
     const offset = MEMORY_GLOW_OFFSETS[(index + shimmer) % MEMORY_GLOW_OFFSETS.length];
     const scale = index === 0 ? 1.15 : 0.7 + ((index + shimmer) % 3) * 0.12;
-    drawSoftGlow(centerX + offset.x, centerY + offset.y, MEMORY_GLOW_COLORS, scale);
+    drawSoftGlow(lightContext, centerX + offset.x, centerY + offset.y, MEMORY_GLOW_COLORS, scale);
   }
 
-  gameContext.restore();
+  lightContext.restore();
 }
 
 function drawLighting(cameraX, cameraY) {
+  lightContext.clearRect(0, 0, VIEWPORT_PIXELS, VIEWPORT_PIXELS);
+  lightContext.imageSmoothingEnabled = false;
+
   // Lighting is drawn after the night tint so glows brighten the world, props, and nearby cat pixels together.
   for (let y = 0; y < GAME_CONFIG.mapHeight; y += 1) {
     for (let x = 0; x < GAME_CONFIG.mapWidth; x += 1) {
@@ -1194,6 +1201,11 @@ function drawLighting(cameraX, cameraY) {
 
     drawMemoryGlow(stop, cameraX, cameraY);
   }
+
+  gameContext.save();
+  gameContext.globalCompositeOperation = "screen";
+  gameContext.drawImage(lightCanvas, 0, 0, VIEWPORT_PIXELS, VIEWPORT_PIXELS);
+  gameContext.restore();
 }
 
 function drawTextureTile(image, screenX, screenY, tileX, tileY) {

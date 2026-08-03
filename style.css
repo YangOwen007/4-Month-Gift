@@ -304,9 +304,31 @@ select {
   min-height: 320px;
   border: 3px dashed rgba(36, 27, 20, 0.32);
   background: rgba(255, 255, 255, 0.76);
+  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
+}
+
+.dialog-scrapbook {
+  position: absolute;
+  inset: 0;
+  padding: 20px;
+}
+
+.scrapbook-card {
+  position: absolute;
+  background: #fffdf8;
+  border: 4px solid rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 28px rgba(36, 27, 20, 0.22);
+  padding: 12px 12px 18px;
+}
+
+.scrapbook-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .dialog-image {

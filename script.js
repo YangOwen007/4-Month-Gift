@@ -15,6 +15,19 @@ const GAME_CONFIG = {
       title: "The Start Of Us",
       note: "I love all of our dates of course, but our first few hold a special place in my heart. We weren’t officially dating yet, but discovering my love for you was an experience I remember constantly. As we get to know each other even better, my love for you will grow even more!",
       image: "",
+      scrapbook: {
+        type: "single",
+        photos: [
+          {
+            src: "assets/memories/raw/memory-1.jpg",
+            top: "8%",
+            left: "11%",
+            width: "78%",
+            height: "84%",
+            rotate: -4
+          }
+        ]
+      },
       x: 13,
       y: 27,
       gate: { x: 14, y: 27 }
@@ -24,6 +37,19 @@ const GAME_CONFIG = {
       title: "One Of My Favorite Days",
       note: "Another time I think about often was senior appreciation - the first time we were really public about our relationship. Something about shouting to the world “I’m hers!” makes me so so happy, in a way I can’t fully describe in words.",
       image: "",
+      scrapbook: {
+        type: "single",
+        photos: [
+          {
+            src: "assets/memories/raw/memory-2.jpg",
+            top: "7%",
+            left: "10%",
+            width: "80%",
+            height: "85%",
+            rotate: 3
+          }
+        ]
+      },
       x: 17,
       y: 20,
       gate: { x: 16, y: 20 }
@@ -33,6 +59,19 @@ const GAME_CONFIG = {
       title: "A Quiet Little Moment",
       note: "Out of all our wonderful memories, some of my favorites were those early mornings, when I’d wake up, open my eyes, and see the love of my life sleeping next to me. You bring so much joy into my life just by existing love, and I can’t wait for the day when I get to wake up next to you again.",
       image: "",
+      scrapbook: {
+        type: "single",
+        photos: [
+          {
+            src: "assets/memories/raw/memory-3.jpg",
+            top: "8%",
+            left: "14%",
+            width: "74%",
+            height: "84%",
+            rotate: -3
+          }
+        ]
+      },
       x: 9,
       y: 13,
       gate: { x: 9, y: 12 }
@@ -42,6 +81,43 @@ const GAME_CONFIG = {
       title: "Almost At The End",
       note: "Though we’re far away from each other now, I think we’ve only grown closer as a couple. Dealing with the long distance has let me learn so much about you, and have conversations with you that might have happened differently otherwise. Long distance is worth it when it’s with you my love! (but come back soon please)",
       image: "",
+      scrapbook: {
+        type: "collage",
+        photos: [
+          {
+            src: "assets/memories/raw/memory-4a.jpg",
+            top: "9%",
+            left: "6%",
+            width: "38%",
+            height: "37%",
+            rotate: -6
+          },
+          {
+            src: "assets/memories/raw/memory-4b.jpg",
+            top: "12%",
+            left: "48%",
+            width: "34%",
+            height: "34%",
+            rotate: 5
+          },
+          {
+            src: "assets/memories/raw/memory-4c.jpg",
+            top: "47%",
+            left: "11%",
+            width: "30%",
+            height: "34%",
+            rotate: 4
+          },
+          {
+            src: "assets/memories/raw/memory-4d.jpg",
+            top: "44%",
+            left: "46%",
+            width: "36%",
+            height: "40%",
+            rotate: -5
+          }
+        ]
+      },
       x: 9,
       y: 8,
       gate: { x: 10, y: 8 }
@@ -292,6 +368,7 @@ const closeDialogButton = document.querySelector("#close-dialog");
 const dialogKicker = document.querySelector("#dialog-kicker");
 const dialogTitle = document.querySelector("#dialog-title");
 const dialogNote = document.querySelector("#dialog-note");
+const dialogScrapbook = document.querySelector("#dialog-scrapbook");
 const dialogImage = document.querySelector("#dialog-image");
 const dialogPlaceholder = document.querySelector("#dialog-placeholder");
 const endingBanner = document.querySelector("#ending-banner");
@@ -367,6 +444,43 @@ function saveEditableTextStorageMap(storageMap) {
   } catch (error) {
     console.warn("Editable text could not be saved to local storage.", error);
   }
+}
+
+function renderScrapbook(stop) {
+  if (!dialogScrapbook) {
+    return false;
+  }
+
+  dialogScrapbook.replaceChildren();
+
+  if (!stop.scrapbook?.photos?.length) {
+    dialogScrapbook.classList.add("hidden");
+    dialogScrapbook.setAttribute("aria-hidden", "true");
+    return false;
+  }
+
+  // Each memory can arrange one or more cards without needing pre-baked scrapbook images.
+  for (const photo of stop.scrapbook.photos) {
+    const card = document.createElement("figure");
+    card.className = "scrapbook-card";
+    card.style.top = photo.top;
+    card.style.left = photo.left;
+    card.style.width = photo.width;
+    card.style.height = photo.height;
+    card.style.transform = `rotate(${photo.rotate}deg)`;
+
+    const image = document.createElement("img");
+    image.src = photo.src;
+    image.alt = stop.title;
+    image.loading = "eager";
+
+    card.append(image);
+    dialogScrapbook.append(card);
+  }
+
+  dialogScrapbook.classList.remove("hidden");
+  dialogScrapbook.setAttribute("aria-hidden", "false");
+  return true;
 }
 
 function getEditableNodeKey(element, index) {
@@ -2120,15 +2234,24 @@ function openDialog(stop) {
   setEditableText(dialogTitle, stop.title);
   setEditableText(dialogNote, stop.note);
 
-  if (stop.image) {
+  if (renderScrapbook(stop)) {
+    dialogImage.removeAttribute("src");
+    dialogImage.alt = "";
+    dialogImage.classList.add("hidden");
+    dialogPlaceholder.classList.add("hidden");
+  } else if (stop.image) {
     dialogImage.src = stop.image;
     dialogImage.alt = stop.title;
     dialogImage.classList.remove("hidden");
+    dialogScrapbook?.classList.add("hidden");
+    dialogScrapbook?.setAttribute("aria-hidden", "true");
     dialogPlaceholder.classList.add("hidden");
   } else {
     dialogImage.removeAttribute("src");
     dialogImage.alt = "";
     dialogImage.classList.add("hidden");
+    dialogScrapbook?.classList.add("hidden");
+    dialogScrapbook?.setAttribute("aria-hidden", "true");
     dialogPlaceholder.classList.remove("hidden");
   }
 

@@ -362,7 +362,6 @@ lightCanvas.height = VIEWPORT_PIXELS;
 const lightContext = lightCanvas.getContext("2d");
 const objectiveText = document.querySelector("#objective-text");
 const progressText = document.querySelector("#progress-text");
-const buildVersionText = document.querySelector("#build-version");
 const dialogBackdrop = document.querySelector("#dialog-backdrop");
 const closeDialogButton = document.querySelector("#close-dialog");
 const dialogKicker = document.querySelector("#dialog-kicker");
@@ -370,7 +369,6 @@ const dialogTitle = document.querySelector("#dialog-title");
 const dialogNote = document.querySelector("#dialog-note");
 const dialogScrapbook = document.querySelector("#dialog-scrapbook");
 const dialogImage = document.querySelector("#dialog-image");
-const dialogPlaceholder = document.querySelector("#dialog-placeholder");
 const endingBanner = document.querySelector("#ending-banner");
 const characterPicker = document.querySelector("#character-picker");
 const characterChoiceButtons = Array.from(document.querySelectorAll("[data-character-choice]"));
@@ -379,8 +377,6 @@ const characterPreviewPink = document.querySelector("#character-preview-pink");
 const characterLabelWhite = document.querySelector("#character-label-white");
 const characterLabelPink = document.querySelector("#character-label-pink");
 const backgroundMusic = document.querySelector("#background-music");
-const editableTextNodes = Array.from(document.querySelectorAll(".editable-text"));
-const EDITABLE_TEXT_STORAGE_KEY = "gift-game-editable-text-v1";
 
 const state = {
   player: { ...GAME_CONFIG.start },
@@ -415,35 +411,11 @@ const state = {
 };
 
 function setEditableText(element, value) {
-  if (!element || element.dataset.userEdited === "true") {
+  if (!element) {
     return;
   }
 
   element.textContent = value;
-}
-
-function getEditableTextStorageMap() {
-  try {
-    const raw = window.localStorage.getItem(EDITABLE_TEXT_STORAGE_KEY);
-
-    if (!raw) {
-      return {};
-    }
-
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    console.warn("Editable text could not be read from local storage.", error);
-    return {};
-  }
-}
-
-function saveEditableTextStorageMap(storageMap) {
-  try {
-    window.localStorage.setItem(EDITABLE_TEXT_STORAGE_KEY, JSON.stringify(storageMap));
-  } catch (error) {
-    console.warn("Editable text could not be saved to local storage.", error);
-  }
 }
 
 function renderScrapbook(stop) {
@@ -483,48 +455,6 @@ function renderScrapbook(stop) {
   return true;
 }
 
-function getEditableNodeKey(element, index) {
-  // Stable keys let the browser remember your edits even after the live site reloads.
-  if (element.id) {
-    return `id:${element.id}`;
-  }
-
-  return `index:${index}`;
-}
-
-function initializeEditableText() {
-  const storedTextMap = getEditableTextStorageMap();
-
-  editableTextNodes.forEach((element, index) => {
-    const storageKey = getEditableNodeKey(element, index);
-    element.dataset.editKey = storageKey;
-
-    // Plain browser editing makes it easy for you to tune the gift copy without opening code.
-    element.contentEditable = "true";
-    element.spellcheck = false;
-    element.setAttribute("tabindex", "0");
-    element.setAttribute("role", "textbox");
-
-    if (typeof storedTextMap[storageKey] === "string") {
-      element.textContent = storedTextMap[storageKey];
-      element.dataset.userEdited = "true";
-    }
-
-    const persistEditableValue = () => {
-      const nextStorageMap = getEditableTextStorageMap();
-      nextStorageMap[storageKey] = element.textContent ?? "";
-      saveEditableTextStorageMap(nextStorageMap);
-    };
-
-    element.addEventListener("input", () => {
-      element.dataset.userEdited = "true";
-      persistEditableValue();
-    });
-
-    element.addEventListener("blur", persistEditableValue);
-  });
-}
-
 function getSelectedCharacterOption() {
   return CHARACTER_OPTIONS[state.selectedCharacterId] ?? CHARACTER_OPTIONS.white;
 }
@@ -555,29 +485,6 @@ function startBackgroundMusic() {
       console.warn("Background music could not start yet.", error);
       state.isBackgroundMusicStarted = false;
     });
-  }
-}
-
-async function loadBuildVersion() {
-  if (!buildVersionText) {
-    return;
-  }
-
-  try {
-    // Fetching a generated version file lets the live Pages site identify exactly which deployment is active.
-    const response = await fetch(`version.json?v=${Date.now()}`, { cache: "no-store" });
-
-    if (!response.ok) {
-      throw new Error(`Version request failed with ${response.status}`);
-    }
-
-    const payload = await response.json();
-    const shortSha = payload.sha ? String(payload.sha).slice(0, 7) : "unknown";
-    const builtAt = payload.builtAt ? new Date(payload.builtAt).toLocaleString() : "unknown time";
-    setEditableText(buildVersionText, `${shortSha} • ${builtAt}`);
-  } catch (error) {
-    console.warn("Build version lookup failed.", error);
-    setEditableText(buildVersionText, "Local preview / build info unavailable");
   }
 }
 
@@ -2238,22 +2145,19 @@ function openDialog(stop) {
     dialogImage.removeAttribute("src");
     dialogImage.alt = "";
     dialogImage.classList.add("hidden");
-    dialogPlaceholder.classList.add("hidden");
-  } else if (stop.image) {
+      } else if (stop.image) {
     dialogImage.src = stop.image;
     dialogImage.alt = stop.title;
     dialogImage.classList.remove("hidden");
     dialogScrapbook?.classList.add("hidden");
     dialogScrapbook?.setAttribute("aria-hidden", "true");
-    dialogPlaceholder.classList.add("hidden");
-  } else {
+      } else {
     dialogImage.removeAttribute("src");
     dialogImage.alt = "";
     dialogImage.classList.add("hidden");
     dialogScrapbook?.classList.add("hidden");
     dialogScrapbook?.setAttribute("aria-hidden", "true");
-    dialogPlaceholder.classList.remove("hidden");
-  }
+      }
 
   dialogBackdrop.classList.remove("hidden");
   dialogBackdrop.setAttribute("aria-hidden", "false");
@@ -2395,10 +2299,8 @@ async function initializeGame() {
   gameContext.imageSmoothingEnabled = false;
   fireworksContext.imageSmoothingEnabled = false;
   initializeCharacterPicker();
-  loadBuildVersion();
   state.assets = await loadAssets();
   updateHud();
-  initializeEditableText();
   renderGame();
 }
 
@@ -2416,3 +2318,4 @@ characterChoiceButtons.forEach((button) => {
 initializeGame().catch((error) => {
   console.error("Failed to initialize game", error);
 });
+

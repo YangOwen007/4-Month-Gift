@@ -1139,7 +1139,8 @@ function drawFireflyGlow(screenX, screenY, tileX, tileY) {
   const activeLights = getFireflySwarmLights(screenX, screenY, tileX, tileY);
 
   gameContext.save();
-  gameContext.globalCompositeOperation = "screen";
+  // `lighten` keeps overlapping glow areas from stacking brighter and brighter on top of each other.
+  gameContext.globalCompositeOperation = "lighten";
 
   for (const light of activeLights) {
     drawSoftGlow(light.x, light.y, FIREFLY_GLOW_COLORS, 0.65 + light.intensity * 0.55);
@@ -1156,7 +1157,8 @@ function drawMemoryGlow(stop, cameraX, cameraY) {
   const shimmer = state.sparkleFrame % 3;
 
   gameContext.save();
-  gameContext.globalCompositeOperation = "screen";
+  // Memories use the same non-stacking blend mode so nearby light sources stay soft instead of compounding.
+  gameContext.globalCompositeOperation = "lighten";
 
   // The memory glow follows the sparkle animation so it feels like the same magical source of light.
   for (let index = 0; index < MEMORY_GLOW_OFFSETS.length; index += 1) {

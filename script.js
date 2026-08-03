@@ -303,6 +303,7 @@ const characterLabelWhite = document.querySelector("#character-label-white");
 const characterLabelPink = document.querySelector("#character-label-pink");
 const backgroundMusic = document.querySelector("#background-music");
 const editableTextNodes = Array.from(document.querySelectorAll(".editable-text"));
+const EDITABLE_TEXT_STORAGE_KEY = "gift-game-editable-text-v1";
 
 const state = {
   player: { ...GAME_CONFIG.start },
@@ -344,17 +345,70 @@ function setEditableText(element, value) {
   element.textContent = value;
 }
 
+function getEditableTextStorageMap() {
+  try {
+    const raw = window.localStorage.getItem(EDITABLE_TEXT_STORAGE_KEY);
+
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    console.warn("Editable text could not be read from local storage.", error);
+    return {};
+  }
+}
+
+function saveEditableTextStorageMap(storageMap) {
+  try {
+    window.localStorage.setItem(EDITABLE_TEXT_STORAGE_KEY, JSON.stringify(storageMap));
+  } catch (error) {
+    console.warn("Editable text could not be saved to local storage.", error);
+  }
+}
+
+function getEditableNodeKey(element, index) {
+  // Stable keys let the browser remember your edits even after the live site reloads.
+  if (element.id) {
+    return `id:${element.id}`;
+  }
+
+  return `index:${index}`;
+}
+
 function initializeEditableText() {
-  for (const element of editableTextNodes) {
+  const storedTextMap = getEditableTextStorageMap();
+
+  editableTextNodes.forEach((element, index) => {
+    const storageKey = getEditableNodeKey(element, index);
+    element.dataset.editKey = storageKey;
+
     // Plain browser editing makes it easy for you to tune the gift copy without opening code.
     element.contentEditable = "true";
     element.spellcheck = false;
     element.setAttribute("tabindex", "0");
+    element.setAttribute("role", "textbox");
+
+    if (typeof storedTextMap[storageKey] === "string") {
+      element.textContent = storedTextMap[storageKey];
+      element.dataset.userEdited = "true";
+    }
+
+    const persistEditableValue = () => {
+      const nextStorageMap = getEditableTextStorageMap();
+      nextStorageMap[storageKey] = element.textContent ?? "";
+      saveEditableTextStorageMap(nextStorageMap);
+    };
 
     element.addEventListener("input", () => {
       element.dataset.userEdited = "true";
+      persistEditableValue();
     });
-  }
+
+    element.addEventListener("blur", persistEditableValue);
+  });
 }
 
 function getSelectedCharacterOption() {

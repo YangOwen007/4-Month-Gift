@@ -302,6 +302,7 @@ const characterPreviewPink = document.querySelector("#character-preview-pink");
 const characterLabelWhite = document.querySelector("#character-label-white");
 const characterLabelPink = document.querySelector("#character-label-pink");
 const backgroundMusic = document.querySelector("#background-music");
+const editableTextNodes = Array.from(document.querySelectorAll(".editable-text"));
 
 const state = {
   player: { ...GAME_CONFIG.start },
@@ -334,6 +335,27 @@ const state = {
     heartLoopTime: 0
   }
 };
+
+function setEditableText(element, value) {
+  if (!element || element.dataset.userEdited === "true") {
+    return;
+  }
+
+  element.textContent = value;
+}
+
+function initializeEditableText() {
+  for (const element of editableTextNodes) {
+    // Plain browser editing makes it easy for you to tune the gift copy without opening code.
+    element.contentEditable = "true";
+    element.spellcheck = false;
+    element.setAttribute("tabindex", "0");
+
+    element.addEventListener("input", () => {
+      element.dataset.userEdited = "true";
+    });
+  }
+}
 
 function getSelectedCharacterOption() {
   return CHARACTER_OPTIONS[state.selectedCharacterId] ?? CHARACTER_OPTIONS.white;
@@ -384,10 +406,10 @@ async function loadBuildVersion() {
     const payload = await response.json();
     const shortSha = payload.sha ? String(payload.sha).slice(0, 7) : "unknown";
     const builtAt = payload.builtAt ? new Date(payload.builtAt).toLocaleString() : "unknown time";
-    buildVersionText.textContent = `${shortSha} • ${builtAt}`;
+    setEditableText(buildVersionText, `${shortSha} • ${builtAt}`);
   } catch (error) {
     console.warn("Build version lookup failed.", error);
-    buildVersionText.textContent = "Local preview / build info unavailable";
+    setEditableText(buildVersionText, "Local preview / build info unavailable");
   }
 }
 
@@ -821,6 +843,177 @@ function createSparkleFrames() {
   });
 }
 
+function addEyeHighlights(image) {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+
+    if (!context) {
+      return image;
+    }
+
+    context.imageSmoothingEnabled = false;
+    context.drawImage(image, 0, 0);
+
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const blobs = [];
+    const visited = new Uint8Array(canvas.width * canvas.height);
+    const isDarkFeaturePixel = (index) => (
+      pixels[index + 3] > 180 &&
+      pixels[index] < 45 &&
+      pixels[index + 1] < 45 &&
+      pixels[index + 2] < 45
+    );
+
+    // We detect tiny interior dark blobs so we can brighten the eye area without touching the sprite outlines.
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        const visitIndex = y * canvas.width + x;
+        if (visited[visitIndex]) {
+          continue;
+        }
+
+        const pixelIndex = visitIndex * 4;
+        visited[visitIndex] = 1;
+
+        if (!isDarkFeaturePixel(pixelIndex)) {
+          continue;
+        }
+
+        const stack = [[x, y]];
+        const blobPixels = [];
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+
+        while (stack.length > 0) {
+          const [currentX, currentY] = stack.pop();
+          const currentVisitIndex = currentY * canvas.width + currentX;
+          const currentPixelIndex = currentVisitIndex * 4;
+
+          if (!isDarkFeaturePixel(currentPixelIndex)) {
+            continue;
+          }
+
+          blobPixels.push({ x: currentX, y: currentY });
+          minX = Math.min(minX, currentX);
+          minY = Math.min(minY, currentY);
+          maxX = Math.max(maxX, currentX);
+          maxY = Math.max(maxY, currentY);
+          pixels[currentPixelIndex + 3] = pixels[currentPixelIndex + 3];
+
+          const neighbors = [
+            [currentX - 1, currentY],
+            [currentX + 1, currentY],
+            [currentX, currentY - 1],
+            [currentX, currentY + 1]
+          ];
+
+          for (const [neighborX, neighborY] of neighbors) {
+            if (neighborX < 0 || neighborX >= canvas.width || neighborY < 0 || neighborY >= canvas.height) {
+              continue;
+            }
+
+            const neighborVisitIndex = neighborY * canvas.width + neighborX;
+            if (visited[neighborVisitIndex]) {
+              continue;
+            }
+
+            visited[neighborVisitIndex] = 1;
+            stack.push([neighborX, neighborY]);
+          }
+        }
+
+        if (blobPixels.length === 0) {
+          continue;
+        }
+
+        blobs.push({
+          pixels: blobPixels,
+          minX,
+          minY,
+          maxX,
+          maxY,
+          width: maxX - minX + 1,
+          height: maxY - minY + 1,
+          centerX: (minX + maxX) / 2,
+          centerY: (minY + maxY) / 2
+        });
+      }
+    }
+
+    const candidates = blobs
+      .filter((blob) => (
+        blob.centerY >= canvas.height * 0.22 &&
+        blob.centerY <= canvas.height * 0.68 &&
+        blob.width <= 5 &&
+        blob.height <= 5 &&
+        blob.pixels.length <= 8 &&
+        blob.minX > 0 &&
+        blob.maxX < canvas.width - 1
+      ))
+      .sort((left, right) => left.centerY - right.centerY);
+
+    const selected = [];
+
+    if (candidates.length > 0) {
+      selected.push(candidates[0]);
+    }
+
+    for (const candidate of candidates) {
+      if (selected.length >= 2) {
+        break;
+      }
+
+      if (selected.some((blob) => Math.abs(blob.centerX - candidate.centerX) < canvas.width * 0.18)) {
+        continue;
+      }
+
+      selected.push(candidate);
+    }
+
+    for (const blob of selected) {
+      const bestPixel = blob.pixels.reduce((best, pixel) => {
+        if (!best) {
+          return pixel;
+        }
+
+        if (pixel.y < best.y) {
+          return pixel;
+        }
+
+        if (pixel.y === best.y && pixel.x < best.x) {
+          return pixel;
+        }
+
+        return best;
+      }, null);
+
+      if (!bestPixel) {
+        continue;
+      }
+
+      const shineX = bestPixel.x;
+      const shineY = bestPixel.y;
+      const shineIndex = (shineY * canvas.width + shineX) * 4;
+      pixels[shineIndex] = 255;
+      pixels[shineIndex + 1] = 255;
+      pixels[shineIndex + 2] = 255;
+      pixels[shineIndex + 3] = 255;
+    }
+
+    context.putImageData(imageData, 0, 0);
+    return canvas;
+  } catch (error) {
+    console.warn("Eye highlight pass failed, using original sprite instead.", error);
+    return image;
+  }
+}
+
 async function loadCharacterAssets(characterOption) {
   const [sitImage, ...playerFrameImages] = await Promise.all([
     loadImage(characterOption.sit),
@@ -829,14 +1022,14 @@ async function loadCharacterAssets(characterOption) {
 
   // Each character keeps the same four-direction animation contract, which lets the rest of the game stay generic.
   const playerFrames = {
-    down: playerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)),
-    left: playerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)),
-    up: playerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)),
-    right: playerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image))
+    down: playerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image)),
+    left: playerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image)),
+    up: playerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image)),
+    right: playerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image))
   };
 
   return {
-    sit: trimTransparentSprite(sitImage),
+    sit: addEyeHighlights(trimTransparentSprite(sitImage)),
     playerFrames
   };
 }
@@ -848,12 +1041,12 @@ async function loadDirectionalPartnerAssets(partnerOption) {
   ]);
 
   return {
-    sit: trimTransparentSprite(sitImage),
+    sit: addEyeHighlights(trimTransparentSprite(sitImage)),
     playerFrames: {
-      down: partnerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)),
-      left: partnerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)),
-      up: partnerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)),
-      right: partnerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image))
+      down: partnerFrameImages.slice(0, 2).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image)),
+      left: partnerFrameImages.slice(2, 4).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image)),
+      up: partnerFrameImages.slice(4, 6).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image)),
+      right: partnerFrameImages.slice(6, 8).map((image) => trimTransparentSprite(image)).map((image) => addEyeHighlights(image))
     }
   };
 }
@@ -1007,24 +1200,24 @@ function updateHud() {
   const total = GAME_CONFIG.stops.length;
   const nextStop = getNextRequiredStop();
 
-  progressText.textContent = `${completed} / ${total} memories`;
+  setEditableText(progressText, `${completed} / ${total} memories`);
 
   if (state.endingCutscene.active) {
-    objectiveText.textContent = "Enjoy the view.";
+    setEditableText(objectiveText, "Enjoy the view.");
     return;
   }
 
   if (state.isEndingUnlocked) {
-    objectiveText.textContent = "Take in the ocean and enjoy the fireworks.";
+    setEditableText(objectiveText, "Take in the ocean and enjoy the fireworks.");
     return;
   }
 
   if (nextStop) {
-    objectiveText.textContent = `Reach "${nextStop.title}" and interact before the route opens.`;
+    setEditableText(objectiveText, `Reach "${nextStop.title}" and interact before the route opens.`);
     return;
   }
 
-  objectiveText.textContent = 'Meet the strawberry at the bench and interact.';
+  setEditableText(objectiveText, 'Meet the strawberry at the bench and interact.');
 }
 
 function getCenteredCameraOrigin() {
@@ -1853,9 +2046,9 @@ function startFireworks() {
 function openDialog(stop) {
   state.activeStop = stop;
   state.isDialogOpen = true;
-  dialogKicker.textContent = `Memory ${state.completedStopIds.size + 1}`;
-  dialogTitle.textContent = stop.title;
-  dialogNote.textContent = stop.note;
+  setEditableText(dialogKicker, `Memory ${state.completedStopIds.size + 1}`);
+  setEditableText(dialogTitle, stop.title);
+  setEditableText(dialogNote, stop.note);
 
   if (stop.image) {
     dialogImage.src = stop.image;
@@ -2001,8 +2194,8 @@ function chooseCharacter(characterId) {
 function initializeCharacterPicker() {
   characterPreviewWhite.src = CHARACTER_OPTIONS.white.preview;
   characterPreviewPink.src = CHARACTER_OPTIONS.pink.preview;
-  characterLabelWhite.textContent = CHARACTER_OPTIONS.white.label;
-  characterLabelPink.textContent = CHARACTER_OPTIONS.pink.label;
+  setEditableText(characterLabelWhite, CHARACTER_OPTIONS.white.label);
+  setEditableText(characterLabelPink, CHARACTER_OPTIONS.pink.label);
 }
 
 async function initializeGame() {
@@ -2012,6 +2205,7 @@ async function initializeGame() {
   loadBuildVersion();
   state.assets = await loadAssets();
   updateHud();
+  initializeEditableText();
   renderGame();
 }
 
